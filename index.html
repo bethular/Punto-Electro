@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#12151a">
+<title>Punto Electro — Reparaciones</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <p class="eyebrow">Registro / Reparaciones</p>
+    <h1>Punto Electro</h1>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="reparaciones">Reparaciones</button>
+    <button class="tab-btn" data-tab="clientes">Clientes</button>
+    <button class="tab-btn" data-tab="sync">Sincronizar</button>
+  </nav>
+
+  <!-- ================= TAB: REPARACIONES ================= -->
+  <section id="tab-reparaciones" class="tab-content active">
+
+    <div class="totals">
+      <div class="cell">
+        <div class="label">Ingresos</div>
+        <div class="value income" id="totalIngresos">$ 0</div>
+      </div>
+      <div class="cell">
+        <div class="label">Gastos</div>
+        <div class="value expense" id="totalGastos">$ 0</div>
+      </div>
+      <div class="cell">
+        <div class="label">Ganancia neta</div>
+        <div class="value net" id="totalNeto">$ 0</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Nueva reparación</h2>
+      <div class="field">
+        <label>Cliente</label>
+        <input type="text" id="f_cliente" list="clientesList" placeholder="Buscar o escribir nombre nuevo...">
+        <datalist id="clientesList"></datalist>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Fecha</label>
+          <input type="date" id="f_fecha">
+        </div>
+        <div class="field">
+          <label>Equipo</label>
+          <input type="text" id="f_equipo" placeholder="Ej: Notebook Lenovo, TV Samsung...">
+        </div>
+      </div>
+      <div class="field">
+        <label>Descripción del trabajo</label>
+        <textarea id="f_desc" placeholder="Ej: cambio de fuente, no enciende, limpieza..."></textarea>
+      </div>
+      <div class="money-fields">
+        <div class="field">
+          <label>Ingreso (cobrado)</label>
+          <input type="number" id="f_ingreso" placeholder="0" min="0" step="1">
+        </div>
+        <div class="field">
+          <label>Gasto (repuestos/insumos)</label>
+          <input type="number" id="f_gasto" placeholder="0" min="0" step="1">
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Estado</label>
+          <select id="f_estado">
+            <option value="pendiente">Pendiente</option>
+            <option value="entregado">Entregado</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Fotos del producto</label>
+          <input type="file" id="f_fotos" accept="image/*" multiple capture="environment">
+        </div>
+      </div>
+      <div id="fotoPreview" class="foto-preview"></div>
+      <button class="btn-primary" id="btnAdd">+ Agregar reparación</button>
+    </div>
+
+    <div class="filters">
+      <input type="text" id="filterText" placeholder="Buscar por cliente o equipo...">
+      <select id="filterEstado">
+        <option value="todos">Todos los estados</option>
+        <option value="pendiente">Pendiente</option>
+        <option value="entregado">Entregado</option>
+      </select>
+    </div>
+
+    <div id="ledger" class="ledger"></div>
+    <div id="emptyMsg" class="empty" style="display:none;"></div>
+  </section>
+
+  <!-- ================= TAB: CLIENTES ================= -->
+  <section id="tab-clientes" class="tab-content">
+
+    <div id="clienteDetalle" style="display:none;">
+      <button class="btn-ghost" id="btnVolverClientes">← Volver a clientes</button>
+      <div class="panel" id="clienteDetalleInfo"></div>
+      <h2 class="section-title">Historial de trabajos</h2>
+      <div id="clienteJobs" class="ledger"></div>
+    </div>
+
+    <div id="clientesListaWrap">
+      <div class="panel">
+        <h2>Nuevo cliente</h2>
+        <div class="grid2">
+          <div class="field">
+            <label>Nombre</label>
+            <input type="text" id="c_nombre" placeholder="Nombre y apellido">
+          </div>
+          <div class="field">
+            <label>Teléfono</label>
+            <input type="text" id="c_telefono" placeholder="Opcional">
+          </div>
+        </div>
+        <div class="field">
+          <label>Notas</label>
+          <textarea id="c_notas" placeholder="Opcional"></textarea>
+        </div>
+        <button class="btn-primary" id="btnAddClient">+ Agregar cliente</button>
+      </div>
+
+      <div class="filters">
+        <input type="text" id="filterClientes" placeholder="Buscar cliente...">
+      </div>
+
+      <div id="clientesLista"></div>
+    </div>
+  </section>
+
+  <!-- ================= TAB: SINCRONIZAR ================= -->
+  <section id="tab-sync" class="tab-content">
+    <div class="panel">
+      <h2>Google Drive</h2>
+      <p class="hint">Guardá una copia en tu Google Drive para no depender solo de este celular, y para compartir los datos con colegas.</p>
+      <p id="driveStatus" class="drive-status">No conectado</p>
+      <button class="btn-primary" id="btnConnect">Conectar con Google</button>
+      <div class="btn-row">
+        <button class="btn-ghost" id="btnSaveDrive">↑ Guardar en Drive</button>
+        <button class="btn-ghost" id="btnLoadDrive">↓ Traer de Drive</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Copia de seguridad manual</h2>
+      <p class="hint">Alternativa sin conexión: descargá un archivo con todos tus datos, o cargá uno que ya tengas.</p>
+      <div class="btn-row">
+        <button class="btn-ghost" id="btnExportFile">Descargar copia (.json)</button>
+        <button class="btn-ghost" id="btnImportFileTrigger">Cargar copia (.json)</button>
+      </div>
+      <input type="file" id="importFileInput" accept="application/json" style="display:none;">
+    </div>
+  </section>
+
+</div>
+
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script src="drive.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
