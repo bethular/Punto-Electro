@@ -42,14 +42,24 @@
         <div class="label">Ganancia neta</div>
         <div class="value net" id="totalNeto">$ 0</div>
       </div>
+      <div class="cell" id="cellPorCobrar" style="cursor:pointer;">
+        <div class="label">Por cobrar (tocar)</div>
+        <div class="value porcobrar" id="totalPorCobrar">$ 0</div>
+      </div>
     </div>
 
     <div class="panel">
-      <h2>Nueva reparación</h2>
-      <div class="field">
-        <label>Cliente</label>
-        <input type="text" id="f_cliente" list="clientesList" placeholder="Buscar o escribir nombre nuevo...">
-        <datalist id="clientesList"></datalist>
+      <h2>Nueva orden de trabajo</h2>
+      <div class="grid2">
+        <div class="field">
+          <label>Cliente</label>
+          <input type="text" id="f_cliente" list="clientesList" placeholder="Buscar o escribir nombre nuevo...">
+          <datalist id="clientesList"></datalist>
+        </div>
+        <div class="field">
+          <label>Teléfono</label>
+          <input type="tel" id="f_telefono" placeholder="Ej: 549376...">
+        </div>
       </div>
       <div class="grid2">
         <div class="field">
@@ -62,42 +72,73 @@
         </div>
       </div>
       <div class="field">
+        <label>Fotos del producto</label>
+        <input type="file" id="f_fotos" accept="image/*" multiple capture="environment">
+      </div>
+      <div id="fotoPreview" class="foto-preview"></div>
+      <div class="field">
         <label>Descripción del trabajo</label>
         <textarea id="f_desc" placeholder="Ej: cambio de fuente, no enciende, limpieza..."></textarea>
       </div>
-      <div class="money-fields">
-        <div class="field">
-          <label>Ingreso (cobrado)</label>
-          <input type="number" id="f_ingreso" placeholder="0" min="0" step="1">
-        </div>
-        <div class="field">
-          <label>Gasto (repuestos/insumos)</label>
-          <input type="number" id="f_gasto" placeholder="0" min="0" step="1">
-        </div>
-      </div>
       <div class="grid2">
         <div class="field">
-          <label>Estado</label>
+          <label>Presupuesto (opcional, se puede definir después)</label>
+          <input type="number" id="f_presupuesto" placeholder="0" min="0" step="1">
+        </div>
+        <div class="field">
+          <label>Estado del trabajo</label>
           <select id="f_estado">
             <option value="pendiente">Pendiente</option>
             <option value="entregado">Entregado</option>
           </select>
         </div>
-        <div class="field">
-          <label>Fotos del producto</label>
-          <input type="file" id="f_fotos" accept="image/*" multiple capture="environment">
+      </div>
+
+      <div class="mini-panel">
+        <label class="mini-panel-label">Movimiento inicial (opcional)</label>
+        <div class="grid2">
+          <div class="field">
+            <label>Tipo</label>
+            <select id="f_mov_tipo">
+              <option value="ingreso">Ingreso</option>
+              <option value="gasto">Gasto</option>
+            </select>
+          </div>
+          <div class="field" id="f_mov_subtipo_wrap">
+            <label>¿Qué es este ingreso?</label>
+            <select id="f_mov_subtipo">
+              <option value="adelanto">Adelanto / seña</option>
+              <option value="pago_final">Pago total al entregar</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="field">
+            <label>Monto</label>
+            <input type="number" id="f_mov_monto" placeholder="0" min="0" step="1">
+          </div>
+          <div class="field">
+            <label>Detalle</label>
+            <input type="text" id="f_mov_detalle" placeholder="Ej: repuesto fuente, seña...">
+          </div>
         </div>
       </div>
-      <div id="fotoPreview" class="foto-preview"></div>
-      <button class="btn-primary" id="btnAdd">+ Agregar reparación</button>
+
+      <button class="btn-primary" id="btnAdd">+ Nueva orden de trabajo</button>
     </div>
 
     <div class="filters">
-      <input type="text" id="filterText" placeholder="Buscar por cliente o equipo...">
+      <input type="text" id="filterText" placeholder="Buscar por cliente, teléfono o equipo...">
       <select id="filterEstado">
         <option value="todos">Todos los estados</option>
         <option value="pendiente">Pendiente</option>
         <option value="entregado">Entregado</option>
+      </select>
+      <select id="filterPago">
+        <option value="todos">Todos los pagos</option>
+        <option value="debe">Debe / parcial</option>
+        <option value="pagado">Pagado</option>
       </select>
     </div>
 

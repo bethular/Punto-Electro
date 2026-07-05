@@ -67,7 +67,7 @@ h1{
 /* Totals */
 .totals{
   display:grid;
-  grid-template-columns:1fr 1fr 1fr;
+  grid-template-columns:1fr 1fr 1fr 1fr;
   gap:1px;
   background:var(--line);
   border:1px solid var(--line);
@@ -82,6 +82,7 @@ h1{
 .totals .value.expense{color:var(--copper);}
 .totals .value.net.positive{color:var(--teal);}
 .totals .value.net.negative{color:var(--danger);}
+.totals .value.porcobrar{color:var(--danger);}
 
 /* Panels / forms */
 .panel{
@@ -128,6 +129,55 @@ h1{
 .foto-preview{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px;}
 .foto-preview img{width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--line);}
 
+.mini-panel{
+  background:var(--surface-raised);
+  border:1px dashed var(--line);
+  border-radius:9px;
+  padding:12px;
+  margin:4px 0 14px;
+}
+.mini-panel-label{
+  display:block;font-size:11px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--copper);margin-bottom:10px;
+}
+
+.phone-link{
+  color:var(--teal);text-decoration:none;font-family:var(--font-mono);font-size:12px;
+  display:inline-flex;align-items:center;gap:4px;
+}
+.phone-link:hover{text-decoration:underline;}
+
+.presupuesto-line{
+  font-family:var(--font-mono);font-size:12px;color:var(--text-muted);
+  cursor:pointer;margin-bottom:8px;
+}
+.presupuesto-line b{color:var(--text);}
+.saldo-line{color:var(--danger);}
+
+.movimientos-list{margin:6px 0 10px;}
+.mov-item{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:12px;padding:6px 0;border-bottom:1px solid var(--line);
+}
+.mov-item:last-child{border-bottom:none;}
+.mov-detalle{color:var(--text-muted);flex:1;}
+.mov-monto{font-family:var(--font-mono);margin:0 8px;}
+.mov-monto.ingreso{color:var(--teal);}
+.mov-monto.gasto{color:var(--copper);}
+.mov-del{background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:0 4px;}
+.mov-del:hover{color:var(--danger);}
+
+.mov-add-form{
+  display:none;
+  background:var(--surface-raised);border:1px dashed var(--line);border-radius:8px;
+  padding:10px;margin-bottom:10px;
+}
+.mov-add-form.open{display:block;}
+.mov-add-form .grid2{margin-bottom:6px;}
+.btn-cobrar{
+  background:var(--teal);color:#0e1a17;padding:6px 10px;font-size:12px;margin-top:4px;
+}
+
 button{
   font-family:var(--font-body);
   font-weight:600;
@@ -145,6 +195,7 @@ button:active{transform:scale(.98);}
 .btn-danger{background:transparent;color:var(--danger);padding:6px 10px;border:1px solid var(--danger);}
 .btn-danger:hover{background:rgba(193,91,82,.12);}
 .btn-row{display:flex;gap:8px;margin-top:10px;}
+.btn-sm{padding:6px 10px;font-size:12px;flex:none;}
 
 .drive-status{
   font-family:var(--font-mono);
@@ -201,6 +252,15 @@ button:active{transform:scale(.98);}
   padding:3px 8px;border-radius:5px;background:var(--surface-raised);color:var(--amber);cursor:pointer;
 }
 .entry.entregado .status-tag{color:var(--teal);}
+.pago-tag{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 8px;border-radius:5px;background:var(--surface-raised);cursor:pointer;margin-left:6px;
+}
+.pago-tag.debe{color:var(--danger);}
+.pago-tag.parcial{color:var(--amber);}
+.pago-tag.pagado{color:var(--teal);}
+.fecha-cobro{font-family:var(--font-mono);font-size:11px;color:var(--danger);margin-left:6px;}
+.status-group{display:flex;align-items:center;flex-wrap:wrap;gap:2px;}
 .entry-actions{display:flex;gap:6px;}
 
 .empty{text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13px;}

@@ -78,6 +78,20 @@ async function findOrCreateClientByName(nombre) {
   return saveClient({ nombre: nombre.trim(), telefono: '', notas: '' });
 }
 
+async function findOrCreateClientByNameAndPhone(nombre, telefono) {
+  const all = await getAllClients();
+  const existing = all.find(c => c.nombre.trim().toLowerCase() === nombre.trim().toLowerCase());
+  if (existing) {
+    const tel = (telefono || '').trim();
+    if (tel && tel !== (existing.telefono || '').trim()) {
+      existing.telefono = tel;
+      await saveClient(existing);
+    }
+    return existing;
+  }
+  return saveClient({ nombre: nombre.trim(), telefono: (telefono || '').trim(), notas: '' });
+}
+
 // ---------- TRABAJOS (reparaciones) ----------
 
 async function getAllJobs() {
