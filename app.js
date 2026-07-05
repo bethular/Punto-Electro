@@ -4,9 +4,11 @@
 
 let currentClients = [];
 let currentJobs = [];
+let currentCaja = [];
 let pendingFotos = []; // fotos cargadas en el form, esperando "Agregar"
 let viendoClienteId = null;
 let filterPagoState = 'todos';
+let cajaQuickAddTipo = 'ingreso';
 
 function fmtMoney(n) {
   return '$ ' + Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
@@ -90,9 +92,11 @@ document.getElementById('f_fecha').value = todayStr();
 async function renderAll() {
   currentClients = await getAllClients();
   currentJobs = (await getAllJobs()).map(normalizeJob);
+  currentCaja = await getAllCaja();
   renderClientDatalist();
   renderLedger();
   renderClientesLista();
+  renderCajaLista();
   if (viendoClienteId) renderClienteDetalle(viendoClienteId);
 }
 
@@ -421,8 +425,10 @@ function renderLedger() {
     return matchesText && matchesEstado && matchesPago;
   });
 
-  const totalIngresos = currentJobs.reduce((s, j) => s + totalIngresoJob(j), 0);
-  const totalGastos = currentJobs.reduce((s, j) => s + totalGastoJob(j), 0);
+  const totalIngresos = currentJobs.reduce((s, j) => s + totalIngresoJob(j), 0)
+    + currentCaja.filter(m => m.tipo === 'ingreso').reduce((s, m) => s + Number(m.monto || 0), 0);
+  const totalGastos = currentJobs.reduce((s, j) => s + totalGastoJob(j), 0)
+    + currentCaja.filter(m => m.tipo === 'gasto').reduce((s, m) => s + Number(m.monto || 0), 0);
   const neto = totalIngresos - totalGastos;
   const totalPorCobrar = currentJobs.reduce((s, j) => s + Math.max(0, saldoJob(j)), 0);
 
@@ -459,6 +465,81 @@ document.getElementById('cellPorCobrar').addEventListener('click', () => {
   renderLedger();
   document.getElementById('ledger').scrollIntoView({ behavior: 'smooth' });
 });
+
+// ---------------- CARGA RÁPIDA DE CAJA (tocando Ingresos/Gastos en el dashboard) ----------------
+function abrirCajaQuickAdd(tipo) {
+  cajaQuickAddTipo = tipo;
+  document.getElementById('cajaQuickAddLabel').textContent = tipo === 'ingreso'
+    ? 'Cargar ingreso general (no ligado a un trabajo)'
+    : 'Cargar gasto general (no ligado a un trabajo)';
+  document.getElementById('cajaQuickAdd').style.display = 'block';
+  document.getElementById('caja_monto').value = '';
+  document.getElementById('caja_detalle').value = '';
+  document.getElementById('cajaQuickAdd').scrollIntoView({ behavior: 'smooth' });
+}
+document.getElementById('cellIngresos').addEventListener('click', () => abrirCajaQuickAdd('ingreso'));
+document.getElementById('cellGastos').addEventListener('click', () => abrirCajaQuickAdd('gasto'));
+document.getElementById('btnCancelarCaja').addEventListener('click', () => {
+  document.getElementById('cajaQuickAdd').style.display = 'none';
+});
+document.getElementById('btnGuardarCaja').addEventListener('click', async () => {
+  const monto = parseFloat(document.getElementById('caja_monto').value) || 0;
+  const detalle = document.getElementById('caja_detalle').value.trim();
+  if (monto <= 0) { alert('Ingresá un monto mayor a 0.'); return; }
+  await saveCajaMov({ tipo: cajaQuickAddTipo, monto, detalle: detalle || (cajaQuickAddTipo === 'ingreso' ? 'Ingreso' : 'Gasto'), fecha: todayStr() });
+  document.getElementById('cajaQuickAdd').style.display = 'none';
+  await renderAll();
+});
+
+// ---------------- PESTAÑA CAJA ----------------
+document.getElementById('btnAddCajaTab').addEventListener('click', async () => {
+  const tipo = document.getElementById('cajaTab_tipo').value;
+  const monto = parseFloat(document.getElementById('cajaTab_monto').value) || 0;
+  const detalle = document.getElementById('cajaTab_detalle').value.trim();
+  if (monto <= 0) { alert('Ingresá un monto mayor a 0.'); return; }
+  await saveCajaMov({ tipo, monto, detalle: detalle || (tipo === 'ingreso' ? 'Ingreso' : 'Gasto'), fecha: todayStr() });
+  document.getElementById('cajaTab_monto').value = '';
+  document.getElementById('cajaTab_detalle').value = '';
+  await renderAll();
+});
+
+async function eliminarCajaMov(id) {
+  if (!confirm('¿Eliminar este movimiento de caja?')) return;
+  await deleteCajaMov(id);
+  await renderAll();
+}
+
+function renderCajaLista() {
+  const filterText = (document.getElementById('filterCaja').value || '').toLowerCase();
+  const filtered = currentCaja.filter(m => !filterText || (m.detalle || '').toLowerCase().includes(filterText));
+  const wrap = document.getElementById('cajaLista');
+  const emptyMsg = document.getElementById('cajaEmptyMsg');
+
+  if (filtered.length === 0) {
+    wrap.innerHTML = '';
+    emptyMsg.style.display = 'block';
+    emptyMsg.textContent = currentCaja.length === 0
+      ? 'Todavía no cargaste movimientos generales de caja.'
+      : 'No hay resultados con ese filtro.';
+    return;
+  }
+  emptyMsg.style.display = 'none';
+
+  wrap.innerHTML = filtered.map(m => `
+    <div class="entry">
+      <div class="entry-top">
+        <div class="entry-title">${escapeHtml(m.detalle)}</div>
+        <div class="entry-date">${fmtDate(m.fecha)}</div>
+      </div>
+      <div class="entry-bottom">
+        <span class="mov-monto ${m.tipo}" style="font-size:15px;">${m.tipo === 'gasto' ? '−' : '+'}${fmtMoney(m.monto)}</span>
+        <div class="entry-actions">
+          <button class="btn-danger" onclick="eliminarCajaMov('${m.id}')">Eliminar</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+document.getElementById('filterCaja').addEventListener('input', renderCajaLista);
 
 // ---------------- CLIENTES ----------------
 document.getElementById('btnAddClient').addEventListener('click', async () => {

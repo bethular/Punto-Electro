@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------
 
 const DB_NAME = 'punto-electro-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 let dbInstance = null;
 
 function openDB() {
@@ -22,6 +22,10 @@ function openDB() {
         const jobs = db.createObjectStore('jobs', { keyPath: 'id' });
         jobs.createIndex('clientId', 'clientId', { unique: false });
         jobs.createIndex('fecha', 'fecha', { unique: false });
+      }
+      if (!db.objectStoreNames.contains('caja')) {
+        const caja = db.createObjectStore('caja', { keyPath: 'id' });
+        caja.createIndex('fecha', 'fecha', { unique: false });
       }
     };
 
@@ -129,26 +133,60 @@ async function deleteJob(id) {
   });
 }
 
+// ---------- CAJA GENERAL (movimientos no ligados a un trabajo) ----------
+
+async function getAllCaja() {
+  const store = await txStore('caja', 'readonly');
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '')));
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function saveCajaMov(mov) {
+  if (!mov.id) mov.id = genId();
+  const store = await txStore('caja', 'readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.put(mov);
+    req.onsuccess = () => resolve(mov);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function deleteCajaMov(id) {
+  const store = await txStore('caja', 'readwrite');
+  return new Promise((resolve, reject) => {
+    const req = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
 // ---------- EXPORTAR / IMPORTAR (para Drive y respaldo manual) ----------
 
 async function exportAllData() {
   const clients = await getAllClients();
   const jobs = await getAllJobs();
-  return JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), clients, jobs });
+  const caja = await getAllCaja();
+  return JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), clients, jobs, caja });
 }
 
 async function importAllData(jsonOrObj) {
   const data = typeof jsonOrObj === 'string' ? JSON.parse(jsonOrObj) : jsonOrObj;
   const db = await openDB();
-  const tx = db.transaction(['clients', 'jobs'], 'readwrite');
+  const tx = db.transaction(['clients', 'jobs', 'caja'], 'readwrite');
   const clientsStore = tx.objectStore('clients');
   const jobsStore = tx.objectStore('jobs');
+  const cajaStore = tx.objectStore('caja');
 
   await new Promise((resolve) => { clientsStore.clear().onsuccess = resolve; });
   await new Promise((resolve) => { jobsStore.clear().onsuccess = resolve; });
+  await new Promise((resolve) => { cajaStore.clear().onsuccess = resolve; });
 
   (data.clients || []).forEach(c => clientsStore.put(c));
   (data.jobs || []).forEach(j => jobsStore.put(j));
+  (data.caja || []).forEach(m => cajaStore.put(m));
 
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
