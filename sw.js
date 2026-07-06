@@ -1,4 +1,4 @@
-const CACHE_NAME = 'punto-electro-v1';
+const CACHE_NAME = 'punto-electro-v2';
 const ASSETS = [
   './',
   './index.html',

@@ -205,6 +205,27 @@
 
   <!-- ================= TAB: CAJA ================= -->
   <section id="tab-caja" class="tab-content">
+
+    <div class="panel">
+      <h2>Resumen</h2>
+      <div class="periodo-tabs">
+        <button class="periodo-btn active" id="resumenBtnSemana" data-periodo="semana">Semana</button>
+        <button class="periodo-btn" id="resumenBtnMes" data-periodo="mes">Mes</button>
+        <button class="periodo-btn" id="resumenBtnAnio" data-periodo="anio">Año</button>
+      </div>
+      <div class="periodo-nav">
+        <button class="btn-ghost btn-sm" id="resumenPrev">← Anterior</button>
+        <span id="resumenLabel" class="periodo-label"></span>
+        <button class="btn-ghost btn-sm" id="resumenNext">Siguiente →</button>
+      </div>
+      <div class="entry-money" style="margin-top:14px;">
+        <div><b>Ingresos</b><span class="income" id="resumenIngresos">$ 0</span></div>
+        <div><b>Gastos</b><span class="expense" id="resumenGastos">$ 0</span></div>
+        <div><b>Ganancia</b><span class="profit" id="resumenNeto">$ 0</span></div>
+      </div>
+      <p class="hint" style="margin-top:10px;">Incluye movimientos de trabajos y de caja general juntos — es la foto completa del negocio en ese período.</p>
+    </div>
+
     <div class="panel">
       <h2>Movimiento de caja</h2>
       <p class="hint">Ingresos o gastos generales del negocio que no son de un trabajo puntual (alquiler, herramientas, venta de accesorios, etc).</p>

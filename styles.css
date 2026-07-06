@@ -178,6 +178,15 @@ h1{
   background:var(--teal);color:#0e1a17;padding:6px 10px;font-size:12px;margin-top:4px;
 }
 
+.periodo-tabs{display:flex;gap:6px;margin-bottom:12px;}
+.periodo-btn{
+  background:var(--surface-raised);border:1px solid var(--line);color:var(--text-muted);
+  padding:7px 14px;border-radius:7px;font-size:13px;
+}
+.periodo-btn.active{background:var(--copper);color:#181310;border-color:var(--copper);}
+.periodo-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.periodo-label{font-family:var(--font-mono);font-size:13px;color:var(--text);text-align:center;flex:1;}
+
 button{
   font-family:var(--font-body);
   font-weight:600;

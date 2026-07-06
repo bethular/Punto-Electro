@@ -9,6 +9,8 @@ let pendingFotos = []; // fotos cargadas en el form, esperando "Agregar"
 let viendoClienteId = null;
 let filterPagoState = 'todos';
 let cajaQuickAddTipo = 'ingreso';
+let resumenTipo = 'semana';
+let resumenOffset = 0;
 
 function fmtMoney(n) {
   return '$ ' + Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
@@ -97,6 +99,7 @@ async function renderAll() {
   renderLedger();
   renderClientesLista();
   renderCajaLista();
+  renderResumen();
   if (viendoClienteId) renderClienteDetalle(viendoClienteId);
 }
 
@@ -540,6 +543,78 @@ function renderCajaLista() {
     </div>`).join('');
 }
 document.getElementById('filterCaja').addEventListener('input', renderCajaLista);
+
+// ---------------- RESUMEN POR PERÍODO (Semana / Mes / Año) ----------------
+function getAllMovimientosGlobal() {
+  const arr = [];
+  currentJobs.forEach(j => (j.movimientos || []).forEach(m => arr.push(m)));
+  currentCaja.forEach(m => arr.push(m));
+  return arr;
+}
+
+function getRangoPeriodo(tipo, offset) {
+  const hoy = new Date();
+  if (tipo === 'semana') {
+    const dia = hoy.getDay(); // 0=domingo
+    const diffLunes = (dia === 0 ? -6 : 1 - dia);
+    const lunes = new Date(hoy);
+    lunes.setHours(0, 0, 0, 0);
+    lunes.setDate(hoy.getDate() + diffLunes + offset * 7);
+    const domingo = new Date(lunes);
+    domingo.setDate(lunes.getDate() + 6);
+    domingo.setHours(23, 59, 59, 999);
+    const f = (d) => d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+    return { start: lunes, end: domingo, label: `${f(lunes)} — ${f(domingo)}` };
+  }
+  if (tipo === 'mes') {
+    const base = new Date(hoy.getFullYear(), hoy.getMonth() + offset, 1);
+    const start = new Date(base.getFullYear(), base.getMonth(), 1, 0, 0, 0, 0);
+    const end = new Date(base.getFullYear(), base.getMonth() + 1, 0, 23, 59, 59, 999);
+    const label = start.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+    return { start, end, label: label.charAt(0).toUpperCase() + label.slice(1) };
+  }
+  // anio
+  const year = hoy.getFullYear() + offset;
+  const start = new Date(year, 0, 1, 0, 0, 0, 0);
+  const end = new Date(year, 11, 31, 23, 59, 59, 999);
+  return { start, end, label: String(year) };
+}
+
+function renderResumen() {
+  const { start, end, label } = getRangoPeriodo(resumenTipo, resumenOffset);
+  const movs = getAllMovimientosGlobal();
+  let ingresos = 0, gastos = 0;
+  movs.forEach(m => {
+    if (!m.fecha) return;
+    const d = new Date(m.fecha + 'T12:00:00');
+    if (d >= start && d <= end) {
+      if (m.tipo === 'ingreso') ingresos += Number(m.monto || 0);
+      else gastos += Number(m.monto || 0);
+    }
+  });
+  document.getElementById('resumenLabel').textContent = label;
+  document.getElementById('resumenIngresos').textContent = fmtMoney(ingresos);
+  document.getElementById('resumenGastos').textContent = fmtMoney(gastos);
+  document.getElementById('resumenNeto').textContent = fmtMoney(ingresos - gastos);
+}
+
+document.querySelectorAll('.periodo-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.periodo-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    resumenTipo = btn.dataset.periodo;
+    resumenOffset = 0;
+    renderResumen();
+  });
+});
+document.getElementById('resumenPrev').addEventListener('click', () => {
+  resumenOffset -= 1;
+  renderResumen();
+});
+document.getElementById('resumenNext').addEventListener('click', () => {
+  resumenOffset += 1;
+  renderResumen();
+});
 
 // ---------------- CLIENTES ----------------
 document.getElementById('btnAddClient').addEventListener('click', async () => {
