@@ -785,5 +785,14 @@ if ('serviceWorker' in navigator) {
 }
 
 // ---------------- ARRANQUE ----------------
-initGoogleClient();
-renderAll(true).then(() => attemptAutoSync());
+renderAll(true).then(() => {
+  function startGoogle() {
+    initGoogleClient();
+    attemptAutoSync();
+  }
+  if (window.__gsiLoaded || (typeof google !== 'undefined' && google.accounts)) {
+    startGoogle();
+  } else {
+    window.__onGsiReady = startGoogle;
+  }
+});

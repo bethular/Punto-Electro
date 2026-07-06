@@ -33,6 +33,10 @@ function connectGoogle() {
     alert('Falta configurar el Client ID de Google en config.js (ver README.md).');
     return;
   }
+  if (typeof google === 'undefined' || !google.accounts) {
+    alert('Google todavía está cargando, esperá unos segundos y probá de nuevo.');
+    return;
+  }
   if (!tokenClient) initGoogleClient();
   tokenClient.requestAccessToken();
 }
