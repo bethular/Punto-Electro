@@ -85,6 +85,7 @@ async function saveToDrive() {
       body,
     });
     if (!res.ok) throw new Error('Error al subir a Drive');
+    localStorage.setItem('pe_lastSyncedAt', JSON.parse(jsonData).exportedAt || new Date().toISOString());
     setDriveStatus('Guardado en Drive ✓ (' + new Date().toLocaleTimeString('es-AR') + ')', true);
   } catch (e) {
     console.error(e);
@@ -112,11 +113,56 @@ async function loadFromDrive() {
     if (!res.ok) throw new Error('Error al leer desde Drive');
     const json = await res.json();
     await importAllData(json);
+    localStorage.setItem('pe_lastSyncedAt', json.exportedAt || new Date().toISOString());
     setDriveStatus('Datos traídos de Drive ✓ (' + new Date().toLocaleTimeString('es-AR') + ')', true);
     renderAll && renderAll();
   } catch (e) {
     console.error(e);
     setDriveStatus('No se pudo traer la copia de Drive.', false);
+  }
+}
+
+async function attemptAutoSync() {
+  if (!isGoogleConfigured()) return;
+  if (!tokenClient) initGoogleClient();
+  if (!tokenClient) return;
+  try {
+    const connected = await new Promise((resolve) => {
+      tokenClient.callback = (resp) => {
+        if (resp.error) { resolve(false); return; }
+        accessToken = resp.access_token;
+        resolve(true);
+      };
+      tokenClient.requestAccessToken({ prompt: '' });
+    });
+    if (!connected) return; // el usuario todavía no conectó su cuenta una primera vez
+    setDriveStatus('Conectado a Google Drive ✓ (automático)', true);
+    await silentPullIfNewer();
+  } catch (e) {
+    console.error('Auto-sync error:', e);
+  }
+}
+
+async function silentPullIfNewer() {
+  try {
+    const existing = await findBackupFileId();
+    if (!existing) return;
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${existing.id}?alt=media`,
+      { headers: { Authorization: 'Bearer ' + accessToken } }
+    );
+    if (!res.ok) return;
+    const json = await res.json();
+    const remoteTs = json.exportedAt || null;
+    const localTs = localStorage.getItem('pe_lastSyncedAt');
+    if (remoteTs && (!localTs || new Date(remoteTs) > new Date(localTs))) {
+      await importAllData(json);
+      localStorage.setItem('pe_lastSyncedAt', remoteTs);
+      setDriveStatus('Datos actualizados automáticamente desde Drive ✓', true);
+      await renderAll(true);
+    }
+  } catch (e) {
+    console.error('Silent pull error:', e);
   }
 }
 

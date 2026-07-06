@@ -91,7 +91,14 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 // ---------------- INIT ----------------
 document.getElementById('f_fecha').value = todayStr();
 
-async function renderAll() {
+let autoPushTimer = null;
+function scheduleAutoPush() {
+  if (typeof accessToken === 'undefined' || !accessToken) return;
+  clearTimeout(autoPushTimer);
+  autoPushTimer = setTimeout(() => { saveToDrive(); }, 2500);
+}
+
+async function renderAll(skipAutoPush) {
   currentClients = await getAllClients();
   currentJobs = (await getAllJobs()).map(normalizeJob);
   currentCaja = await getAllCaja();
@@ -101,6 +108,7 @@ async function renderAll() {
   renderCajaLista();
   renderResumen();
   if (viendoClienteId) renderClienteDetalle(viendoClienteId);
+  if (!skipAutoPush) scheduleAutoPush();
 }
 
 function renderClientDatalist() {
@@ -778,4 +786,4 @@ if ('serviceWorker' in navigator) {
 
 // ---------------- ARRANQUE ----------------
 initGoogleClient();
-renderAll();
+renderAll(true).then(() => attemptAutoSync());
