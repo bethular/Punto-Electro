@@ -322,6 +322,27 @@ function subtipoLabel(subtipo) {
   return '';
 }
 
+function renderJobCardCompact(job) {
+  const ganancia = totalIngresoJob(job) - totalGastoJob(job);
+  const pagoEstado = pagoEstadoJob(job);
+  const pagoTagClass = pagoEstado === 'debe' ? 'debe' : (pagoEstado === 'parcial' ? 'parcial' : 'pagado');
+  const pagoTagText = pagoEstado === 'debe' ? 'Debe' : (pagoEstado === 'parcial' ? 'Parcial' : 'Pagado');
+  return `
+    <div class="entry entry-compact ${job.estado}" onclick="irACliente('${job.clientId}')">
+      <div class="entry-top">
+        <div class="entry-title">${escapeHtml(clienteNombrePorId(job.clientId))}${job.equipo ? ' · ' + escapeHtml(job.equipo) : ''}</div>
+        <div class="entry-date">${fmtDate(job.fecha)}</div>
+      </div>
+      <div class="entry-bottom">
+        <div class="status-group">
+          <span class="status-tag" style="pointer-events:none;">${job.estado}</span>
+          <span class="pago-tag ${pagoTagClass}">${pagoTagText}</span>
+        </div>
+        <span class="mov-monto ${ganancia >= 0 ? 'ingreso' : 'gasto'}">${fmtMoney(ganancia)}</span>
+      </div>
+    </div>`;
+}
+
 function renderJobCard(job) {
   const ingresos = totalIngresoJob(job);
   const gastos = totalGastoJob(job);
@@ -463,7 +484,7 @@ function renderLedger() {
     return;
   }
   emptyMsg.style.display = 'none';
-  ledger.innerHTML = filtered.map(renderJobCard).join('');
+  ledger.innerHTML = filtered.map(renderJobCardCompact).join('');
 }
 
 document.getElementById('filterText').addEventListener('input', renderLedger);
@@ -675,6 +696,16 @@ function irACliente(clientId) {
   renderClienteDetalle(clientId);
 }
 
+function nuevoTrabajoParaCliente(clientId) {
+  const cliente = currentClients.find(c => c.id === clientId);
+  if (!cliente) return;
+  document.querySelector('.tab-btn[data-tab="reparaciones"]').click();
+  document.getElementById('f_cliente').value = cliente.nombre;
+  document.getElementById('f_telefono').value = cliente.telefono || '';
+  document.getElementById('f_equipo').focus();
+  document.querySelector('.panel h2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function volverAClientes() {
   viendoClienteId = null;
   document.getElementById('clienteDetalle').style.display = 'none';
@@ -729,6 +760,7 @@ function renderClienteDetalle(clientId) {
     </div>
     ${totalPorCobrar > 0 ? `<p class="saldo-line" style="font-family:var(--font-mono);font-size:13px;margin-top:8px;">Saldo pendiente de este cliente: ${fmtMoney(totalPorCobrar)}</p>` : ''}
     <div class="btn-row">
+      <button class="btn-primary" style="margin-top:0;width:auto;flex:1;" onclick="nuevoTrabajoParaCliente('${cliente.id}')">+ Nuevo trabajo para este cliente</button>
       <button class="btn-danger" onclick="deleteClienteConfirm('${cliente.id}')">Eliminar cliente</button>
     </div>
   `;

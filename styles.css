@@ -243,6 +243,9 @@ button:active{transform:scale(.98);}
   background:var(--amber);box-shadow:0 0 0 3px var(--bg-base);
 }
 .entry.entregado::before{background:var(--teal);}
+.entry-compact{cursor:pointer;padding:12px 14px;}
+.entry-compact:hover{border-color:var(--text-muted);}
+.entry-compact .entry-bottom{margin-top:6px;}
 .entry-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;}
 .entry-title{font-weight:600;font-size:15px;cursor:pointer;}
 .entry-title:hover{text-decoration:underline;}
