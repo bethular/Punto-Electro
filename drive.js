@@ -137,7 +137,7 @@ async function attemptAutoSync() {
         accessToken = resp.access_token;
         resolve(true);
       };
-      tokenClient.requestAccessToken({ prompt: '' });
+      tokenClient.requestAccessToken({ prompt: 'none' });
     });
     if (!connected) return; // el usuario todavía no conectó su cuenta una primera vez
     setDriveStatus('Conectado a Google Drive ✓ (automático)', true);
