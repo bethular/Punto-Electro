@@ -30,43 +30,6 @@
   <!-- ================= TAB: REPARACIONES ================= -->
   <section id="tab-reparaciones" class="tab-content active">
 
-    <div class="totals">
-      <div class="cell" id="cellIngresos" style="cursor:pointer;">
-        <div class="label">Ingresos (tocar)</div>
-        <div class="value income" id="totalIngresos">$ 0</div>
-      </div>
-      <div class="cell" id="cellGastos" style="cursor:pointer;">
-        <div class="label">Gastos (tocar)</div>
-        <div class="value expense" id="totalGastos">$ 0</div>
-      </div>
-      <div class="cell">
-        <div class="label">Ganancia neta</div>
-        <div class="value net" id="totalNeto">$ 0</div>
-      </div>
-      <div class="cell" id="cellPorCobrar" style="cursor:pointer;">
-        <div class="label">Por cobrar (tocar)</div>
-        <div class="value porcobrar" id="totalPorCobrar">$ 0</div>
-      </div>
-    </div>
-
-    <div class="mini-panel" id="cajaQuickAdd" style="display:none;">
-      <label class="mini-panel-label" id="cajaQuickAddLabel">Cargar movimiento de caja</label>
-      <div class="grid2">
-        <div class="field">
-          <label>Monto</label>
-          <input type="number" id="caja_monto" placeholder="0" min="0" step="1">
-        </div>
-        <div class="field">
-          <label>Detalle</label>
-          <input type="text" id="caja_detalle" placeholder="Ej: alquiler, venta de accesorio...">
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn-primary" id="btnGuardarCaja" style="margin-top:0;">Guardar</button>
-        <button class="btn-ghost" id="btnCancelarCaja">Cancelar</button>
-      </div>
-    </div>
-
     <div class="panel">
       <h2>Nueva orden de trabajo</h2>
       <div class="grid2">
@@ -206,6 +169,25 @@
   <!-- ================= TAB: CAJA ================= -->
   <section id="tab-caja" class="tab-content">
 
+    <div class="totals">
+      <div class="cell" id="cellIngresos" style="cursor:pointer;">
+        <div class="label">Ingresos (tocar)</div>
+        <div class="value income" id="totalIngresos">$ 0</div>
+      </div>
+      <div class="cell" id="cellGastos" style="cursor:pointer;">
+        <div class="label">Gastos (tocar)</div>
+        <div class="value expense" id="totalGastos">$ 0</div>
+      </div>
+      <div class="cell">
+        <div class="label">Ganancia neta</div>
+        <div class="value net" id="totalNeto">$ 0</div>
+      </div>
+      <div class="cell" id="cellPorCobrar" style="cursor:pointer;">
+        <div class="label">Por cobrar (tocar)</div>
+        <div class="value porcobrar" id="totalPorCobrar">$ 0</div>
+      </div>
+    </div>
+
     <div class="panel">
       <h2>Resumen</h2>
       <div class="periodo-tabs">
@@ -224,6 +206,7 @@
         <div><b>Ganancia</b><span class="profit" id="resumenNeto">$ 0</span></div>
       </div>
       <p class="hint" style="margin-top:10px;">Incluye movimientos de trabajos y de caja general juntos — es la foto completa del negocio en ese período.</p>
+      <button class="btn-ghost btn-sm" id="btnCompartirResumen">💬 Compartir por WhatsApp</button>
     </div>
 
     <div class="panel">
@@ -238,8 +221,19 @@
           </select>
         </div>
         <div class="field">
+          <label>Fecha</label>
+          <input type="date" id="cajaTab_fecha">
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
           <label>Monto</label>
           <input type="number" id="cajaTab_monto" placeholder="0" min="0" step="1">
+        </div>
+        <div class="field">
+          <label>Categoría (opcional)</label>
+          <input type="text" id="cajaTab_categoria" list="categoriasList" placeholder="Ej: alquiler, repuestos...">
+          <datalist id="categoriasList"></datalist>
         </div>
       </div>
       <div class="field">
@@ -251,6 +245,9 @@
 
     <div class="filters">
       <input type="text" id="filterCaja" placeholder="Buscar por detalle...">
+      <select id="filterCategoria">
+        <option value="todas">Todas las categorías</option>
+      </select>
     </div>
 
     <div id="cajaLista" class="ledger"></div>

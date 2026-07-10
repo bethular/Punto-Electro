@@ -80,7 +80,7 @@ h1{
 .totals .value{font-family:var(--font-mono);font-size:17px;font-weight:500;}
 .totals .value.income{color:var(--teal);}
 .totals .value.expense{color:var(--copper);}
-.totals .value.net.positive{color:var(--teal);}
+.totals .value.net.positive{color:var(--text);}
 .totals .value.net.negative{color:var(--danger);}
 .totals .value.porcobrar{color:var(--danger);}
 
@@ -255,6 +255,7 @@ button:active{transform:scale(.98);}
 .entry-money span.income{color:var(--teal);}
 .entry-money span.expense{color:var(--copper);}
 .entry-money span.profit{color:var(--text);}
+.entry-money span.profit.negative{color:var(--danger);}
 .entry-money b{font-weight:500;color:var(--text-muted);font-size:11px;display:block;}
 .entry-fotos{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
 .entry-fotos img{width:48px;height:48px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:pointer;}
@@ -264,6 +265,10 @@ button:active{transform:scale(.98);}
   padding:3px 8px;border-radius:5px;background:var(--surface-raised);color:var(--amber);cursor:pointer;
 }
 .entry.entregado .status-tag{color:var(--teal);}
+.categoria-tag{
+  font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--copper);background:var(--surface-raised);padding:2px 7px;border-radius:5px;margin-left:6px;
+}
 .pago-tag{
   font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;
   padding:3px 8px;border-radius:5px;background:var(--surface-raised);cursor:pointer;margin-left:6px;

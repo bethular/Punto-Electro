@@ -90,6 +90,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 // ---------------- INIT ----------------
 document.getElementById('f_fecha').value = todayStr();
+document.getElementById('cajaTab_fecha').value = todayStr();
 
 let autoPushTimer = null;
 function scheduleAutoPush() {
@@ -468,9 +469,14 @@ function renderLedger() {
   document.getElementById('totalGastos').textContent = fmtMoney(totalGastos);
   document.getElementById('totalPorCobrar').textContent = fmtMoney(totalPorCobrar);
   const netoEl = document.getElementById('totalNeto');
-  netoEl.textContent = fmtMoney(neto);
   netoEl.classList.remove('positive', 'negative');
-  netoEl.classList.add(neto >= 0 ? 'positive' : 'negative');
+  if (neto < 0) {
+    netoEl.textContent = '⚠️ ' + fmtMoney(neto);
+    netoEl.classList.add('negative');
+  } else {
+    netoEl.textContent = fmtMoney(neto);
+    netoEl.classList.add('positive');
+  }
 
   const ledger = document.getElementById('ledger');
   const emptyMsg = document.getElementById('emptyMsg');
@@ -491,47 +497,36 @@ document.getElementById('filterText').addEventListener('input', renderLedger);
 document.getElementById('filterEstado').addEventListener('change', renderLedger);
 document.getElementById('filterPago').addEventListener('change', renderLedger);
 
-// Tocar "Por cobrar" en el dashboard filtra directamente la lista
+// Tocar "Por cobrar" en el dashboard filtra directamente la lista (en la pestaña Reparaciones)
 document.getElementById('cellPorCobrar').addEventListener('click', () => {
+  document.querySelector('.tab-btn[data-tab="reparaciones"]').click();
   document.getElementById('filterPago').value = 'debe';
   renderLedger();
   document.getElementById('ledger').scrollIntoView({ behavior: 'smooth' });
 });
 
-// ---------------- CARGA RÁPIDA DE CAJA (tocando Ingresos/Gastos en el dashboard) ----------------
-function abrirCajaQuickAdd(tipo) {
-  cajaQuickAddTipo = tipo;
-  document.getElementById('cajaQuickAddLabel').textContent = tipo === 'ingreso'
-    ? 'Cargar ingreso general (no ligado a un trabajo)'
-    : 'Cargar gasto general (no ligado a un trabajo)';
-  document.getElementById('cajaQuickAdd').style.display = 'block';
-  document.getElementById('caja_monto').value = '';
-  document.getElementById('caja_detalle').value = '';
-  document.getElementById('cajaQuickAdd').scrollIntoView({ behavior: 'smooth' });
+// Tocar "Ingresos" o "Gastos" en el dashboard de Caja preselecciona el tipo en el formulario
+document.getElementById('cellIngresos').addEventListener('click', () => irAFormularioCaja('ingreso'));
+document.getElementById('cellGastos').addEventListener('click', () => irAFormularioCaja('gasto'));
+function irAFormularioCaja(tipo) {
+  document.getElementById('cajaTab_tipo').value = tipo;
+  document.getElementById('cajaTab_monto').focus();
+  document.getElementById('cajaTab_monto').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
-document.getElementById('cellIngresos').addEventListener('click', () => abrirCajaQuickAdd('ingreso'));
-document.getElementById('cellGastos').addEventListener('click', () => abrirCajaQuickAdd('gasto'));
-document.getElementById('btnCancelarCaja').addEventListener('click', () => {
-  document.getElementById('cajaQuickAdd').style.display = 'none';
-});
-document.getElementById('btnGuardarCaja').addEventListener('click', async () => {
-  const monto = parseFloat(document.getElementById('caja_monto').value) || 0;
-  const detalle = document.getElementById('caja_detalle').value.trim();
-  if (monto <= 0) { alert('Ingresá un monto mayor a 0.'); return; }
-  await saveCajaMov({ tipo: cajaQuickAddTipo, monto, detalle: detalle || (cajaQuickAddTipo === 'ingreso' ? 'Ingreso' : 'Gasto'), fecha: todayStr() });
-  document.getElementById('cajaQuickAdd').style.display = 'none';
-  await renderAll();
-});
 
 // ---------------- PESTAÑA CAJA ----------------
 document.getElementById('btnAddCajaTab').addEventListener('click', async () => {
   const tipo = document.getElementById('cajaTab_tipo').value;
   const monto = parseFloat(document.getElementById('cajaTab_monto').value) || 0;
   const detalle = document.getElementById('cajaTab_detalle').value.trim();
+  const fecha = document.getElementById('cajaTab_fecha').value || todayStr();
+  const categoria = document.getElementById('cajaTab_categoria').value.trim();
   if (monto <= 0) { alert('Ingresá un monto mayor a 0.'); return; }
-  await saveCajaMov({ tipo, monto, detalle: detalle || (tipo === 'ingreso' ? 'Ingreso' : 'Gasto'), fecha: todayStr() });
+  await saveCajaMov({ tipo, monto, detalle: detalle || (tipo === 'ingreso' ? 'Ingreso' : 'Gasto'), fecha, categoria });
   document.getElementById('cajaTab_monto').value = '';
   document.getElementById('cajaTab_detalle').value = '';
+  document.getElementById('cajaTab_categoria').value = '';
+  document.getElementById('cajaTab_fecha').value = todayStr();
   await renderAll();
 });
 
@@ -541,9 +536,29 @@ async function eliminarCajaMov(id) {
   await renderAll();
 }
 
+const CATEGORIAS_SUGERIDAS = ['Alquiler', 'Herramientas', 'Repuestos', 'Sueldos', 'Servicios', 'Impuestos', 'Venta de accesorio', 'Otro'];
+
+function renderCategoriasDatalist() {
+  const usadas = [...new Set(currentCaja.map(m => (m.categoria || '').trim()).filter(Boolean))];
+  const todas = [...new Set([...CATEGORIAS_SUGERIDAS, ...usadas])].sort();
+  document.getElementById('categoriasList').innerHTML = todas.map(c => `<option value="${escapeHtml(c)}">`).join('');
+
+  const select = document.getElementById('filterCategoria');
+  const valorActual = select.value;
+  select.innerHTML = '<option value="todas">Todas las categorías</option>' +
+    usadas.sort().map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  if (usadas.includes(valorActual)) select.value = valorActual;
+}
+
 function renderCajaLista() {
   const filterText = (document.getElementById('filterCaja').value || '').toLowerCase();
-  const filtered = currentCaja.filter(m => !filterText || (m.detalle || '').toLowerCase().includes(filterText));
+  const filterCategoria = document.getElementById('filterCategoria').value;
+  renderCategoriasDatalist();
+  const filtered = currentCaja.filter(m => {
+    const matchesText = !filterText || (m.detalle || '').toLowerCase().includes(filterText);
+    const matchesCategoria = filterCategoria === 'todas' || (m.categoria || '') === filterCategoria;
+    return matchesText && matchesCategoria;
+  });
   const wrap = document.getElementById('cajaLista');
   const emptyMsg = document.getElementById('cajaEmptyMsg');
 
@@ -560,7 +575,7 @@ function renderCajaLista() {
   wrap.innerHTML = filtered.map(m => `
     <div class="entry">
       <div class="entry-top">
-        <div class="entry-title">${escapeHtml(m.detalle)}</div>
+        <div class="entry-title">${escapeHtml(m.detalle)}${m.categoria ? ` <span class="categoria-tag">${escapeHtml(m.categoria)}</span>` : ''}</div>
         <div class="entry-date">${fmtDate(m.fecha)}</div>
       </div>
       <div class="entry-bottom">
@@ -572,6 +587,7 @@ function renderCajaLista() {
     </div>`).join('');
 }
 document.getElementById('filterCaja').addEventListener('input', renderCajaLista);
+document.getElementById('filterCategoria').addEventListener('change', renderCajaLista);
 
 // ---------------- RESUMEN POR PERÍODO (Semana / Mes / Año) ----------------
 function getAllMovimientosGlobal() {
@@ -624,7 +640,16 @@ function renderResumen() {
   document.getElementById('resumenLabel').textContent = label;
   document.getElementById('resumenIngresos').textContent = fmtMoney(ingresos);
   document.getElementById('resumenGastos').textContent = fmtMoney(gastos);
-  document.getElementById('resumenNeto').textContent = fmtMoney(ingresos - gastos);
+  const resumenNetoEl = document.getElementById('resumenNeto');
+  const netoResumen = ingresos - gastos;
+  resumenNetoEl.classList.remove('positive', 'negative');
+  if (netoResumen < 0) {
+    resumenNetoEl.textContent = '⚠️ ' + fmtMoney(netoResumen);
+    resumenNetoEl.classList.add('negative');
+  } else {
+    resumenNetoEl.textContent = fmtMoney(netoResumen);
+    resumenNetoEl.classList.add('positive');
+  }
 }
 
 document.querySelectorAll('.periodo-btn').forEach(btn => {
@@ -643,6 +668,16 @@ document.getElementById('resumenPrev').addEventListener('click', () => {
 document.getElementById('resumenNext').addEventListener('click', () => {
   resumenOffset += 1;
   renderResumen();
+});
+
+document.getElementById('btnCompartirResumen').addEventListener('click', () => {
+  const { label } = getRangoPeriodo(resumenTipo, resumenOffset);
+  const periodoNombre = resumenTipo === 'semana' ? 'Semana' : resumenTipo === 'mes' ? 'Mes' : 'Año';
+  const ingresosTxt = document.getElementById('resumenIngresos').textContent;
+  const gastosTxt = document.getElementById('resumenGastos').textContent;
+  const netoTxt = document.getElementById('resumenNeto').textContent;
+  const texto = `📊 Resumen Punto Electro\n${periodoNombre}: ${label}\n\nIngresos: ${ingresosTxt}\nGastos: ${gastosTxt}\nGanancia: ${netoTxt}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank');
 });
 
 // ---------------- CLIENTES ----------------
