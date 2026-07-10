@@ -317,6 +317,72 @@ async function cobrarSaldo(jobId) {
 }
 
 // ---------------- RENDER DE TARJETA DE TRABAJO ----------------
+async function dataUrlToFile(dataUrl, filename) {
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  return new File([blob], filename, { type: blob.type || 'image/jpeg' });
+}
+
+function armarTextoComprobante(job) {
+  const cliente = currentClients.find(c => c.id === job.clientId);
+  const presupuesto = Number(job.presupuesto || 0);
+  const pagado = totalIngresoJob(job);
+  const saldo = saldoJob(job);
+
+  let texto = `🔧 Punto Electro — Comprobante\n\n`;
+  texto += `Cliente: ${cliente ? cliente.nombre : ''}\n`;
+  if (job.equipo) texto += `Equipo: ${job.equipo}\n`;
+  texto += `Fecha: ${fmtDate(job.fecha)}\n`;
+  if (job.desc) texto += `Detalle: ${job.desc}\n`;
+  if (presupuesto > 0) texto += `\nPresupuesto: ${fmtMoney(presupuesto)}`;
+  if (pagado > 0) texto += `\nPagado: ${fmtMoney(pagado)}`;
+  if (presupuesto > 0 && saldo > 0.01) texto += `\nSaldo pendiente: ${fmtMoney(saldo)}`;
+  texto += `\n\nEstado: ${job.estado === 'entregado' ? 'Entregado' : 'Pendiente'}`;
+  return texto;
+}
+
+async function enviarComprobante(jobId) {
+  const job = currentJobs.find(j => j.id === jobId);
+  if (!job) return;
+  const texto = armarTextoComprobante(job);
+  const tieneFoto = job.fotos && job.fotos.length > 0;
+  let file = null;
+  if (tieneFoto) {
+    try { file = await dataUrlToFile(job.fotos[0], 'comprobante.jpg'); } catch (e) { console.error(e); }
+  }
+
+  // 1) Intento con "Compartir" nativo (junta texto + foto en un solo paso) — anda en la mayoría de los celulares
+  if (navigator.share) {
+    try {
+      const shareData = { text: texto, title: 'Comprobante Punto Electro' };
+      if (file && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+        shareData.files = [file];
+      }
+      await navigator.share(shareData);
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return; // el usuario canceló, no hacemos nada más
+      console.error('Error al compartir:', e);
+    }
+  }
+
+  // 2) Alternativa (compu, o si "Compartir" no está disponible): WhatsApp con el texto, y la foto se descarga aparte
+  const telefono = clienteTelefonoPorId(job.clientId);
+  const digits = (telefono || '').replace(/\D/g, '');
+  const waUrl = digits
+    ? `https://wa.me/${digits}?text=${encodeURIComponent(texto)}`
+    : `https://wa.me/?text=${encodeURIComponent(texto)}`;
+  window.open(waUrl, '_blank');
+
+  if (tieneFoto) {
+    alert('Se va a descargar la foto del equipo — adjuntala manualmente en el chat de WhatsApp que se abrió.');
+    const a = document.createElement('a');
+    a.href = job.fotos[0];
+    a.download = 'comprobante-' + (job.equipo || 'reparacion').replace(/\s+/g, '-') + '.jpg';
+    a.click();
+  }
+}
+
 function subtipoLabel(subtipo) {
   if (subtipo === 'adelanto') return 'Adelanto';
   if (subtipo === 'pago_final') return 'Pago final';
@@ -397,6 +463,7 @@ function renderJobCard(job) {
 
       <div class="btn-row">
         <button class="btn-ghost btn-sm" onclick="toggleMovForm('${job.id}')">+ Movimiento</button>
+        <button class="btn-ghost btn-sm" onclick="enviarComprobante('${job.id}')">📤 Comprobante</button>
         ${presupuesto > 0 && saldo > 0.01 ? `<button class="btn-cobrar btn-sm" onclick="cobrarSaldo('${job.id}')">Cobrar saldo (${fmtMoney(saldo)})</button>` : ''}
       </div>
 
