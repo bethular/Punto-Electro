@@ -1,78 +1,87 @@
 // -----------------------------------------------------------------
-// Base de datos local (IndexedDB) - funciona sin internet
-// Dos tablas vinculadas: clients (clientes) y jobs (trabajos/reparaciones)
+// Sincronización con Firebase (Firestore) — reemplaza el uso directo
+// de IndexedDB. Mantiene EXACTAMENTE las mismas funciones que usaba
+// el resto de la app, así que app.js no necesita casi ningún cambio.
+//
+// Cómo funciona: cada dispositivo se conecta solo (sin login visible,
+// autenticación anónima de Firebase), y queda escuchando cambios en
+// tiempo real — cuando vos cargás algo en un celu, se refleja en los
+// demás dispositivos en segundos, sin botones de "sincronizar".
+// Firestore además cachea todo localmente, así que funciona offline
+// y sincroniza solo cuando vuelve la conexión.
 // -----------------------------------------------------------------
 
-const DB_NAME = 'punto-electro-db';
-const DB_VERSION = 2;
-let dbInstance = null;
-
-function openDB() {
-  return new Promise((resolve, reject) => {
-    if (dbInstance) return resolve(dbInstance);
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains('clients')) {
-        const clients = db.createObjectStore('clients', { keyPath: 'id' });
-        clients.createIndex('nombre', 'nombre', { unique: false });
-      }
-      if (!db.objectStoreNames.contains('jobs')) {
-        const jobs = db.createObjectStore('jobs', { keyPath: 'id' });
-        jobs.createIndex('clientId', 'clientId', { unique: false });
-        jobs.createIndex('fecha', 'fecha', { unique: false });
-      }
-      if (!db.objectStoreNames.contains('caja')) {
-        const caja = db.createObjectStore('caja', { keyPath: 'id' });
-        caja.createIndex('fecha', 'fecha', { unique: false });
-      }
-    };
-
-    req.onsuccess = (e) => { dbInstance = e.target.result; resolve(dbInstance); };
-    req.onerror = (e) => reject(e.target.error);
-  });
-}
+let _clients = [];
+let _jobs = [];
+let _caja = [];
+let _onChangeCallback = null;
+let _firestoreReady = false;
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
-async function txStore(storeName, mode) {
-  const db = await openDB();
-  const tx = db.transaction(storeName, mode);
-  return tx.objectStore(storeName);
+function isFirebaseConfigured() {
+  return typeof FIREBASE_CONFIG !== 'undefined' &&
+    FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.includes('PEGÁ_ACÁ');
+}
+
+function setOnChangeCallback(cb) {
+  _onChangeCallback = cb;
+}
+
+async function initFirestoreSync() {
+  if (!isFirebaseConfigured()) {
+    console.warn('Firebase no está configurado todavía (ver config.js).');
+    return;
+  }
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    const db = firebase.firestore();
+    try {
+      await db.enablePersistence({ synchronizeTabs: true });
+    } catch (e) {
+      console.warn('Persistencia offline no disponible en este navegador:', e.code);
+    }
+    await firebase.auth().signInAnonymously();
+
+    db.collection('clients').onSnapshot((snap) => {
+      _clients = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      _firestoreReady = true;
+      if (_onChangeCallback) _onChangeCallback();
+    });
+    db.collection('jobs').onSnapshot((snap) => {
+      _jobs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (_onChangeCallback) _onChangeCallback();
+    });
+    db.collection('caja').onSnapshot((snap) => {
+      _caja = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (_onChangeCallback) _onChangeCallback();
+    });
+  } catch (e) {
+    console.error('Error iniciando Firebase:', e);
+  }
+}
+
+function firestore() {
+  return firebase.firestore();
 }
 
 // ---------- CLIENTES ----------
 
 async function getAllClients() {
-  const store = await txStore('clients', 'readonly');
-  return new Promise((resolve, reject) => {
-    const req = store.getAll();
-    req.onsuccess = () => resolve(req.result.sort((a, b) => a.nombre.localeCompare(b.nombre)));
-    req.onerror = () => reject(req.error);
-  });
+  return [..._clients].sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
 }
 
 async function saveClient(client) {
   if (!client.id) client.id = genId();
   if (!client.creado) client.creado = new Date().toISOString();
-  const store = await txStore('clients', 'readwrite');
-  return new Promise((resolve, reject) => {
-    const req = store.put(client);
-    req.onsuccess = () => resolve(client);
-    req.onerror = () => reject(req.error);
-  });
+  await firestore().collection('clients').doc(client.id).set(client);
+  return client;
 }
 
 async function deleteClient(id) {
-  const store = await txStore('clients', 'readwrite');
-  return new Promise((resolve, reject) => {
-    const req = store.delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  await firestore().collection('clients').doc(id).delete();
 }
 
 async function findOrCreateClientByName(nombre) {
@@ -99,12 +108,7 @@ async function findOrCreateClientByNameAndPhone(nombre, telefono) {
 // ---------- TRABAJOS (reparaciones) ----------
 
 async function getAllJobs() {
-  const store = await txStore('jobs', 'readonly');
-  return new Promise((resolve, reject) => {
-    const req = store.getAll();
-    req.onsuccess = () => resolve(req.result.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '')));
-    req.onerror = () => reject(req.error);
-  });
+  return [..._jobs].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
 }
 
 async function getJobsByClient(clientId) {
@@ -115,81 +119,62 @@ async function getJobsByClient(clientId) {
 async function saveJob(job) {
   if (!job.id) job.id = genId();
   if (!job.creado) job.creado = new Date().toISOString();
-  if (!job.fotos) job.fotos = [];
-  const store = await txStore('jobs', 'readwrite');
-  return new Promise((resolve, reject) => {
-    const req = store.put(job);
-    req.onsuccess = () => resolve(job);
-    req.onerror = () => reject(req.error);
-  });
+  if (!job.movimientos) job.movimientos = [];
+  await firestore().collection('jobs').doc(job.id).set(job);
+  return job;
 }
 
 async function deleteJob(id) {
-  const store = await txStore('jobs', 'readwrite');
-  return new Promise((resolve, reject) => {
-    const req = store.delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  await firestore().collection('jobs').doc(id).delete();
 }
 
-// ---------- CAJA GENERAL (movimientos no ligados a un trabajo) ----------
+// ---------- CAJA GENERAL ----------
 
 async function getAllCaja() {
-  const store = await txStore('caja', 'readonly');
-  return new Promise((resolve, reject) => {
-    const req = store.getAll();
-    req.onsuccess = () => resolve(req.result.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '')));
-    req.onerror = () => reject(req.error);
-  });
+  return [..._caja].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
 }
 
 async function saveCajaMov(mov) {
   if (!mov.id) mov.id = genId();
-  const store = await txStore('caja', 'readwrite');
-  return new Promise((resolve, reject) => {
-    const req = store.put(mov);
-    req.onsuccess = () => resolve(mov);
-    req.onerror = () => reject(req.error);
-  });
+  await firestore().collection('caja').doc(mov.id).set(mov);
+  return mov;
 }
 
 async function deleteCajaMov(id) {
-  const store = await txStore('caja', 'readwrite');
-  return new Promise((resolve, reject) => {
-    const req = store.delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  await firestore().collection('caja').doc(id).delete();
 }
 
-// ---------- EXPORTAR / IMPORTAR (para Drive y respaldo manual) ----------
+// ---------- EXPORTAR / IMPORTAR (respaldo manual) ----------
 
 async function exportAllData() {
-  const clients = await getAllClients();
-  const jobs = await getAllJobs();
-  const caja = await getAllCaja();
-  return JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), clients, jobs, caja });
+  return JSON.stringify({
+    version: 3,
+    exportedAt: new Date().toISOString(),
+    clients: _clients,
+    jobs: _jobs,
+    caja: _caja,
+  });
 }
 
 async function importAllData(jsonOrObj) {
   const data = typeof jsonOrObj === 'string' ? JSON.parse(jsonOrObj) : jsonOrObj;
-  const db = await openDB();
-  const tx = db.transaction(['clients', 'jobs', 'caja'], 'readwrite');
-  const clientsStore = tx.objectStore('clients');
-  const jobsStore = tx.objectStore('jobs');
-  const cajaStore = tx.objectStore('caja');
+  const db = firestore();
+  const batch = db.batch();
 
-  await new Promise((resolve) => { clientsStore.clear().onsuccess = resolve; });
-  await new Promise((resolve) => { jobsStore.clear().onsuccess = resolve; });
-  await new Promise((resolve) => { cajaStore.clear().onsuccess = resolve; });
+  // Borra lo que hay actualmente en las 3 colecciones
+  const [clientsSnap, jobsSnap, cajaSnap] = await Promise.all([
+    db.collection('clients').get(),
+    db.collection('jobs').get(),
+    db.collection('caja').get(),
+  ]);
+  clientsSnap.docs.forEach(d => batch.delete(d.ref));
+  jobsSnap.docs.forEach(d => batch.delete(d.ref));
+  cajaSnap.docs.forEach(d => batch.delete(d.ref));
 
-  (data.clients || []).forEach(c => clientsStore.put(c));
-  (data.jobs || []).forEach(j => jobsStore.put(j));
-  (data.caja || []).forEach(m => cajaStore.put(m));
+  // Carga lo nuevo
+  (data.clients || []).forEach(c => batch.set(db.collection('clients').doc(c.id || genId()), c));
+  (data.jobs || []).forEach(j => batch.set(db.collection('jobs').doc(j.id || genId()), j));
+  (data.caja || []).forEach(m => batch.set(db.collection('caja').doc(m.id || genId()), m));
 
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  await batch.commit();
 }

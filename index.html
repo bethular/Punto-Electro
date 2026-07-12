@@ -11,7 +11,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<script src="https://accounts.google.com/gsi/client" async defer onload="window.__gsiLoaded=true; if(window.__onGsiReady) window.__onGsiReady();"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div class="app">
@@ -257,14 +259,9 @@
   <!-- ================= TAB: SINCRONIZAR ================= -->
   <section id="tab-sync" class="tab-content">
     <div class="panel">
-      <h2>Google Drive</h2>
-      <p class="hint">Guardá una copia en tu Google Drive para no depender solo de este celular, y para compartir los datos con colegas. Una vez que conectás tu cuenta acá, la app va a traer los datos más nuevos solos cada vez que la abrís, y va a subir tus cambios solos a los pocos segundos de cargar algo — no hace falta tocar los botones de abajo salvo la primera vez o si algo falla.</p>
-      <p id="driveStatus" class="drive-status">No conectado</p>
-      <button class="btn-primary" id="btnConnect">Conectar con Google</button>
-      <div class="btn-row">
-        <button class="btn-ghost" id="btnSaveDrive">↑ Guardar en Drive</button>
-        <button class="btn-ghost" id="btnLoadDrive">↓ Traer de Drive</button>
-      </div>
+      <h2>Sincronización</h2>
+      <p class="hint">Los datos se sincronizan solos entre todos los dispositivos que abran esta app — sin login, sin botones de conectar. Cargás algo en un celular y a los pocos segundos aparece en los demás, automático.</p>
+      <p id="driveStatus" class="drive-status">Conectando...</p>
     </div>
 
     <div class="panel">
@@ -282,7 +279,6 @@
 
 <script src="config.js"></script>
 <script src="db.js"></script>
-<script src="drive.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -1,104 +1,127 @@
 # Punto Electro — Registro de Reparaciones
 
 App offline (PWA) para llevar el registro de reparaciones, clientes,
-ingresos y gastos, con respaldo/sincronización en Google Drive.
-
-Funciona sin internet (los datos quedan guardados en el celular) y
-cuando volvés a tener conexión podés mandar la copia a tu Google Drive
-con un botón.
+ingresos y gastos. Se sincroniza sola entre todos los dispositivos que
+abran la app, sin login y sin botones — usando Firebase.
 
 ---
 
-## Paso 1 — Subir la app a GitHub Pages (gratis)
+## Paso 1 — Subir la app a GitHub Pages
+
+(Si ya hiciste este paso antes, salteálo y andá directo al Paso 2 —
+solo hace falta configurarlo una vez.)
 
 1. Creá una cuenta en https://github.com si no tenés.
-2. Creá un repositorio nuevo (botón verde "New"), por ejemplo
-   `punto-electro-app`. Marcalo como **Público**.
-3. Subí TODOS los archivos de esta carpeta al repositorio
-   (botón "Add file" → "Upload files", arrastrás todo).
-4. Andá a **Settings → Pages** (menú de la izquierda) del repositorio.
-5. En "Branch" elegí `main` y carpeta `/ (root)`, guardá.
-6. Esperá 1-2 minutos. Te va a quedar una URL como:
-   `https://TU_USUARIO.github.io/punto-electro-app/`
-
-Esa es la dirección que vas a compartir con tus colegas y que vas a
-usar en el celular (Chrome → menú → "Agregar a pantalla de inicio",
-para que quede instalada como una app).
-
-**Importante:** anotá esta URL exacta, la vas a necesitar en el paso 2.
+2. Creá un repositorio nuevo, público, y subí todos los archivos de
+   esta carpeta (Add file → Upload files, arrastrás todo).
+3. Settings → Pages → Branch: `main`, carpeta `/ (root)` → Save.
+4. Esperá 1-2 minutos. Tu URL va a ser algo como:
+   `https://TU_USUARIO.github.io/TU_REPO/`
 
 ---
 
-## Paso 2 — Crear las credenciales de Google (una sola vez)
+## Paso 2 — Crear el proyecto de Firebase (una sola vez)
 
-1. Entrá a https://console.cloud.google.com con tu cuenta de Google.
-2. Arriba a la izquierda, "Seleccionar proyecto" → "Proyecto nuevo".
-   Ponele un nombre, por ejemplo `Punto Electro`. Creá.
-3. Con el proyecto ya seleccionado, andá al buscador de arriba y escribí
-   **"Google Drive API"** → entrá y tocá **Habilitar**.
-4. Andá a **APIs y servicios → Pantalla de consentimiento de OAuth**.
-   - Tipo de usuario: **Externo** → Crear.
-   - Nombre de la app: `Punto Electro`. Tu email en los campos de contacto.
-   - Guardá y avanzá (podés dejar el resto de los campos vacíos).
-   - En la sección **"Usuarios de prueba"**, agregá tu propio email de
-     Google y el de cada colega que vaya a usar la app (hasta 100).
-     **Esto es obligatorio** — sin agregar el email de un colega ahí,
-     Google no lo va a dejar entrar.
-5. Andá a **APIs y servicios → Credenciales → Crear credenciales →
-   ID de cliente de OAuth**.
-   - Tipo de aplicación: **Aplicación web**.
-   - En "Orígenes de JavaScript autorizados" agregá la URL del Paso 1
-     SIN la barra final, por ejemplo:
-     `https://TU_USUARIO.github.io`
-   - Creá. Te va a mostrar un **Client ID** (termina en
-     `.apps.googleusercontent.com`). Copialo.
+1. Entrá a https://console.firebase.google.com con tu cuenta de Google.
+2. **"Crear un proyecto"** (o "Agregar proyecto"). Nombre: `Punto Electro`.
+   Podés desactivar Google Analytics si te lo pregunta (no lo necesitamos).
+3. Creá el proyecto y esperá a que termine.
 
----
+### Activar la base de datos (Firestore)
 
-## Paso 3 — Pegar el Client ID en la app
+1. En el menú de la izquierda: **Compilación → Firestore Database**.
+2. **"Crear base de datos"**.
+3. Elegí **"Iniciar en modo de prueba"** (test mode) — después ajustamos
+   los permisos en el Paso 4.
+4. Elegí la ubicación del servidor (cualquiera de Sudamérica, ej.
+   `southamerica-east1`) y confirmá.
 
-1. Abrí el archivo `config.js` (lo podés editar directo en GitHub,
-   tocando el lápiz ✏️ arriba a la derecha del archivo).
-2. Reemplazá `PEGÁ_ACÁ_TU_CLIENT_ID...` por el Client ID que copiaste.
-3. Guardá los cambios ("Commit changes").
-4. Esperá un minuto y recargá la app en el celu — ya debería andar el
-   botón "Conectar con Google" en la pestaña **Sincronizar**.
+### Activar el inicio de sesión anónimo
+
+1. Menú de la izquierda: **Compilación → Authentication**.
+2. **"Comenzar"** (Get started).
+3. En la lista de proveedores, buscá **"Anónimo"** (Anonymous) → activalo
+   → Guardar.
+
+### Obtener la configuración para pegar en la app
+
+1. Tocá el ícono de **engranaje ⚙️** (arriba a la izquierda) →
+   **"Configuración del proyecto"**.
+2. Bajá hasta **"Tus apps"** → tocá el ícono **`</>`** (Web).
+3. Ponele un apodo (ej: "Punto Electro Web") → **"Registrar app"**.
+4. Te va a mostrar un bloque de código con `const firebaseConfig = {...}`
+   — copiá esos valores (apiKey, authDomain, projectId, etc.).
 
 ---
 
-## Cómo compartir los datos con colegas
+## Paso 3 — Pegar la configuración en la app
 
-1. Vos cargás algunos trabajos y tocás **"Guardar en Drive"** una vez
-   (esto crea el archivo `punto-electro-backup.json` en tu Drive).
-2. Entrá a https://drive.google.com, buscá ese archivo, click derecho
-   → **Compartir**, y dale acceso de **Editor** al email de cada colega
-   (el mismo que agregaste como "usuario de prueba" en el Paso 2).
-3. Tu colega abre la app, va a **Sincronizar → Conectar con Google**,
-   y toca **"Traer de Drive"** para bajar los datos existentes.
-4. **Recomendación para evitar conflictos:** antes de empezar a cargar
-   trabajos, cada uno toca "Traer de Drive"; al terminar, toca
-   "Guardar en Drive". Si dos personas cargan al mismo tiempo sin
-   sincronizar antes, el último que guarda pisa los datos del otro.
+1. En GitHub, abrí el archivo `config.js` → lápiz ✏️ para editar.
+2. Reemplazá cada valor `"PEGÁ_ACÁ..."` por el que te dio Firebase.
+   Tiene que quedar algo así (con tus valores reales):
+   ```js
+   const FIREBASE_CONFIG = {
+     apiKey: "AIzaSy...",
+     authDomain: "punto-electro-xxxxx.firebaseapp.com",
+     projectId: "punto-electro-xxxxx",
+     storageBucket: "punto-electro-xxxxx.appspot.com",
+     messagingSenderId: "123456789",
+     appId: "1:123456789:web:abc123"
+   };
+   ```
+3. Guardá ("Commit changes").
 
 ---
 
-## Respaldo manual (sin Google)
+## Paso 4 — Ajustar los permisos de la base de datos (importante)
 
-En la pestaña **Sincronizar** también hay botones para descargar un
-archivo `.json` con todos los datos, y para cargar uno — sirve como
-respaldo extra o para pasar datos entre dispositivos sin depender de
-Drive.
+Por defecto, el "modo de prueba" de Firestore deja de funcionar solo
+a los 30 días. Vamos a poner un permiso permanente y seguro:
+
+1. En Firebase, andá a **Firestore Database → Reglas** (Rules).
+2. Reemplazá todo el contenido por esto:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /{document=**} {
+         allow read, write: if request.auth != null;
+       }
+     }
+   }
+   ```
+3. **"Publicar"**.
+
+Esto significa: cualquiera que abra la app (que se conecta sola y de
+forma anónima) puede leer y escribir los datos — no hace falta que
+sepan ni vean ninguna contraseña. La seguridad depende de que la
+dirección de tu app no esté publicada en ningún lado público (no la
+compartas fuera de tu equipo de trabajo).
+
+---
+
+## Cómo compartir la app con colegas
+
+Simplemente pasales el link de la app (`https://TU_USUARIO.github.io/TU_REPO/`).
+La primera vez que la abran, se conectan solos (sin login) y ya
+comparten los mismos datos que vos — sin ningún paso extra.
+
+---
+
+## Respaldo manual (por las dudas)
+
+En la pestaña **Sincronizar** hay botones para descargar un archivo
+`.json` con todos los datos, y para cargar uno — sirve como copia de
+seguridad extra, aunque con Firebase ya no es imprescindible (los
+datos quedan guardados en la nube todo el tiempo).
 
 ---
 
 ## Preguntas frecuentes
 
-**Me aparece un cartel de "Google no verificó esta app"**
-Es normal en apps chicas de uso interno. Tocá "Configuración avanzada"
-→ "Ir a Punto Electro (no seguro)". Solo pasa la primera vez.
-
 **¿Necesito pagar algo?**
-No. GitHub Pages y Google Cloud (dentro de estos límites) son gratis.
+No. El plan gratuito de Firebase ("Spark") alcanza de sobra para un
+negocio como este — miles de operaciones gratis por día.
 
 **¿Puedo cambiar el nombre o los colores de la app?**
 Sí — decile a Claude qué querés cambiar y te edita los archivos.

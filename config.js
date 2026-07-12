@@ -2,10 +2,15 @@
 // CONFIGURACIÓN — completá esto siguiendo el archivo README.md
 // -----------------------------------------------------------------
 
-// Pegá acá el "Client ID" que te da Google Cloud Console
-// (termina en algo como: 123456-abcxyz.apps.googleusercontent.com)
-const GOOGLE_CLIENT_ID = "995529820740-kkqe29gcts8t0n11ulgni8l1nr8s4lfm.apps.googleusercontent.com";
-
-// Nombre del archivo de respaldo que se guarda en Google Drive.
-// Todos los colegas que compartan datos deben usar el MISMO nombre.
-const DRIVE_BACKUP_FILENAME = "punto-electro-backup.json";
+// Pegá acá la configuración de tu proyecto de Firebase.
+// La conseguís en: Configuración del proyecto (⚙️) → Tus apps → app Web.
+// Reemplazá TODO este objeto por el que te da Firebase (los nombres de
+// las propiedades son siempre los mismos: apiKey, authDomain, etc.)
+const FIREBASE_CONFIG = {
+  apiKey: "PEGÁ_ACÁ_TU_API_KEY",
+  authDomain: "PEGÁ_ACÁ.firebaseapp.com",
+  projectId: "PEGÁ_ACÁ_TU_PROJECT_ID",
+  storageBucket: "PEGÁ_ACÁ.appspot.com",
+  messagingSenderId: "PEGÁ_ACÁ",
+  appId: "PEGÁ_ACÁ"
+};

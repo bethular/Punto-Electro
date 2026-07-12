@@ -92,14 +92,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 document.getElementById('f_fecha').value = todayStr();
 document.getElementById('cajaTab_fecha').value = todayStr();
 
-let autoPushTimer = null;
-function scheduleAutoPush() {
-  if (typeof accessToken === 'undefined' || !accessToken) return;
-  clearTimeout(autoPushTimer);
-  autoPushTimer = setTimeout(() => { saveToDrive(); }, 2500);
-}
-
-async function renderAll(skipAutoPush) {
+async function renderAll() {
   currentClients = await getAllClients();
   currentJobs = (await getAllJobs()).map(normalizeJob);
   currentCaja = await getAllCaja();
@@ -109,7 +102,6 @@ async function renderAll(skipAutoPush) {
   renderCajaLista();
   renderResumen();
   if (viendoClienteId) renderClienteDetalle(viendoClienteId);
-  if (!skipAutoPush) scheduleAutoPush();
 }
 
 function renderClientDatalist() {
@@ -873,10 +865,9 @@ function renderClienteDetalle(clientId) {
     : '<div class="empty">Este cliente todavía no tiene trabajos cargados.</div>';
 }
 
-// ---------------- SINCRONIZAR: Drive ----------------
-document.getElementById('btnConnect').addEventListener('click', connectGoogle);
-document.getElementById('btnSaveDrive').addEventListener('click', saveToDrive);
-document.getElementById('btnLoadDrive').addEventListener('click', loadFromDrive);
+// ---------------- SINCRONIZACIÓN ----------------
+// (La sincronización ahora es automática con Firebase — no requiere botones.
+// Ver initFirestoreSync() en db.js y el arranque más abajo.)
 
 // ---------------- SINCRONIZAR: archivo manual ----------------
 document.getElementById('btnExportFile').addEventListener('click', async () => {
@@ -919,14 +910,10 @@ if ('serviceWorker' in navigator) {
 }
 
 // ---------------- ARRANQUE ----------------
-renderAll(true).then(() => {
-  function startGoogle() {
-    initGoogleClient();
-    attemptAutoSync();
-  }
-  if (window.__gsiLoaded || (typeof google !== 'undefined' && google.accounts)) {
-    startGoogle();
-  } else {
-    window.__onGsiReady = startGoogle;
-  }
+setOnChangeCallback(() => {
+  renderAll();
+  const statusEl = document.getElementById('driveStatus');
+  if (statusEl) statusEl.textContent = '🔥 Sincronizado ✓ (' + new Date().toLocaleTimeString('es-AR') + ')';
 });
+initFirestoreSync();
+renderAll();

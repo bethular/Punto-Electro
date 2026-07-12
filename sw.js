@@ -1,10 +1,9 @@
-const CACHE_NAME = 'punto-electro-v2';
+const CACHE_NAME = 'punto-electro-v3-firebase';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
-  './drive.js',
   './db.js',
   './config.js',
   './manifest.json',
@@ -28,11 +27,13 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network falling back to cache - so it updates when online, but works offline
+// Network falling back to cache - así se actualiza cuando hay internet, pero
+// funciona offline. Nunca interceptamos las llamadas de Firebase/Google, para
+// no interferir con la sincronización en tiempo real.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  // Never intercept Google API / auth calls - always go to network
-  if (url.origin.includes('google') || url.origin.includes('googleapis')) {
+  const bypass = ['google', 'googleapis', 'gstatic', 'firebaseio', 'firebase'];
+  if (bypass.some((s) => url.origin.includes(s))) {
     return;
   }
   event.respondWith(
