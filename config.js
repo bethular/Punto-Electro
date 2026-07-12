@@ -7,10 +7,10 @@
 // Reemplazá TODO este objeto por el que te da Firebase (los nombres de
 // las propiedades son siempre los mismos: apiKey, authDomain, etc.)
 const FIREBASE_CONFIG = {
-  apiKey: "PEGÁ_ACÁ_TU_API_KEY",
-  authDomain: "PEGÁ_ACÁ.firebaseapp.com",
-  projectId: "PEGÁ_ACÁ_TU_PROJECT_ID",
-  storageBucket: "PEGÁ_ACÁ.appspot.com",
-  messagingSenderId: "PEGÁ_ACÁ",
-  appId: "PEGÁ_ACÁ"
+  apiKey: "AIzaSyCdPAMjFDaQgXkWP_ge3iiSXFWygdvl-4",
+  authDomain: "punto-electro-f3b73.firebaseapp.com",
+  projectId: "punto-electro-f3b73",
+  storageBucket: "punto-electro-f3b73.firebasestorage.app",
+  messagingSenderId: "435564136124",
+  appId: "1:435564136124:web:d961f471696291014672b9"
 };

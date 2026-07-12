@@ -158,29 +158,35 @@ document.getElementById('btnAdd').addEventListener('click', async () => {
   const movMonto = parseFloat(document.getElementById('f_mov_monto').value) || 0;
   const movDetalle = document.getElementById('f_mov_detalle').value.trim();
 
-  if (!clienteNombre) { alert('Ingresá el nombre del cliente.'); return; }
-  if (!equipo && !desc) { alert('Cargá al menos el equipo o la descripción.'); return; }
+  if (!clienteNombre) { alert('Falta cargar: el nombre del cliente.'); return; }
+  if (!equipo && !desc) { alert('Falta cargar: el equipo o la descripción del trabajo (al menos uno de los dos).'); return; }
 
-  const cliente = await findOrCreateClientByNameAndPhone(clienteNombre, telefono);
+  try {
+    const cliente = await findOrCreateClientByNameAndPhone(clienteNombre, telefono);
 
-  const movimientos = [];
-  if (movMonto > 0) {
-    movimientos.push({
-      id: genLocalId(),
-      tipo: movTipo,
-      subtipo: movTipo === 'ingreso' ? movSubtipo : undefined,
-      monto: movMonto,
-      detalle: movDetalle || (movTipo === 'ingreso' ? 'Ingreso' : 'Gasto'),
-      fecha,
+    const movimientos = [];
+    if (movMonto > 0) {
+      movimientos.push({
+        id: genLocalId(),
+        tipo: movTipo,
+        subtipo: movTipo === 'ingreso' ? movSubtipo : null,
+        monto: movMonto,
+        detalle: movDetalle || (movTipo === 'ingreso' ? 'Ingreso' : 'Gasto'),
+        fecha,
+      });
+    }
+
+    await saveJob({
+      clientId: cliente.id,
+      fecha, equipo, desc, estado, presupuesto,
+      movimientos,
+      fotos: [...pendingFotos],
     });
+  } catch (e) {
+    console.error(e);
+    alert('No se pudo guardar el trabajo. Error: ' + e.message);
+    return;
   }
-
-  await saveJob({
-    clientId: cliente.id,
-    fecha, equipo, desc, estado, presupuesto,
-    movimientos,
-    fotos: [...pendingFotos],
-  });
 
   // reset form
   document.getElementById('f_cliente').value = '';
@@ -271,7 +277,7 @@ async function agregarMovimiento(jobId) {
   job.movimientos.push({
     id: genLocalId(),
     tipo,
-    subtipo: tipo === 'ingreso' ? subtipo : undefined,
+    subtipo: tipo === 'ingreso' ? subtipo : null,
     monto,
     detalle: detalle || (tipo === 'ingreso' ? 'Ingreso' : 'Gasto'),
     fecha: todayStr(),
@@ -900,6 +906,77 @@ document.getElementById('importFileInput').addEventListener('change', async (e) 
     alert('El archivo no tiene un formato válido.');
   }
   e.target.value = '';
+});
+
+// ---------------- RECUPERAR DATOS DE ANTES DE FIREBASE ----------------
+document.getElementById('btnRecuperarViejos').addEventListener('click', async () => {
+  const boton = document.getElementById('btnRecuperarViejos');
+  boton.disabled = true;
+  boton.textContent = 'Buscando...';
+  try {
+    const req = indexedDB.open('punto-electro-db');
+    req.onsuccess = async (e) => {
+      const oldDb = e.target.result;
+      const storeNames = Array.from(oldDb.objectStoreNames);
+      if (!storeNames.includes('clients') && !storeNames.includes('jobs')) {
+        alert('No se encontraron datos viejos guardados en este dispositivo.');
+        boton.disabled = false;
+        boton.textContent = '🔄 Buscar y recuperar datos viejos de este dispositivo';
+        oldDb.close();
+        return;
+      }
+      const tx = oldDb.transaction(storeNames, 'readonly');
+      const leerTodo = (store) => new Promise((resolve) => {
+        if (!storeNames.includes(store)) return resolve([]);
+        const r = tx.objectStore(store).getAll();
+        r.onsuccess = () => resolve(r.result || []);
+        r.onerror = () => resolve([]);
+      });
+      const [clientsViejos, jobsViejos, cajaVieja] = await Promise.all([
+        leerTodo('clients'), leerTodo('jobs'), leerTodo('caja'),
+      ]);
+      oldDb.close();
+
+      if (!clientsViejos.length && !jobsViejos.length && !cajaVieja.length) {
+        alert('No se encontraron datos viejos guardados en este dispositivo.');
+        boton.disabled = false;
+        boton.textContent = '🔄 Buscar y recuperar datos viejos de este dispositivo';
+        return;
+      }
+
+      const ok = confirm(
+        `Se encontraron en este dispositivo:\n` +
+        `- ${clientsViejos.length} cliente(s)\n` +
+        `- ${jobsViejos.length} trabajo(s)\n` +
+        `- ${cajaVieja.length} movimiento(s) de caja\n\n` +
+        `¿Subirlos ahora a la base de datos compartida?`
+      );
+      if (!ok) {
+        boton.disabled = false;
+        boton.textContent = '🔄 Buscar y recuperar datos viejos de este dispositivo';
+        return;
+      }
+
+      boton.textContent = 'Subiendo...';
+      for (const c of clientsViejos) await saveClient(c);
+      for (const j of jobsViejos) await saveJob(j);
+      for (const m of cajaVieja) await saveCajaMov(m);
+
+      alert('¡Listo! Se recuperaron los datos y ya están sincronizados.');
+      boton.textContent = '✓ Datos recuperados';
+      await renderAll();
+    };
+    req.onerror = () => {
+      alert('No se encontraron datos viejos guardados en este dispositivo.');
+      boton.disabled = false;
+      boton.textContent = '🔄 Buscar y recuperar datos viejos de este dispositivo';
+    };
+  } catch (e) {
+    console.error(e);
+    alert('Error al buscar datos viejos: ' + e.message);
+    boton.disabled = false;
+    boton.textContent = '🔄 Buscar y recuperar datos viejos de este dispositivo';
+  }
 });
 
 // ---------------- SERVICE WORKER ----------------
