@@ -108,6 +108,56 @@ comparten los mismos datos que vos — sin ningún paso extra.
 
 ---
 
+## Backup automático por correo (opcional)
+
+La app puede mandar sola, cada cierta cantidad de días, un resumen de
+todos los datos a una casilla de correo — sin que nadie tenga que
+tocar nada. Usa un servicio gratuito llamado **EmailJS** (200 correos
+gratis por mes, de sobra para esto).
+
+1. Entrá a https://www.emailjs.com y creá una cuenta gratis.
+2. **Email Services** → **Add New Email Service** → elegí Gmail (u
+   otro que uses) y conectá tu cuenta de correo. Anotá el
+   **Service ID** que te muestra (algo como `service_xxxxx`).
+3. **Email Templates** → **Create New Template**. En el asunto y
+   cuerpo del mensaje, usá estas variables (podés armarlo como
+   quieras, por ejemplo):
+   ```
+   Asunto: Backup Punto Electro
+
+   Cuerpo:
+   {{resumen}}
+
+   ---
+   Datos completos (JSON):
+   {{backup_json}}
+   ```
+   En el campo "To Email" del template, poné `{{to_email}}`.
+   Guardá y anotá el **Template ID** (algo como `template_xxxxx`).
+4. **Account** (ícono de tu usuario, arriba a la derecha) →
+   **General** → copiá tu **Public Key**.
+5. En GitHub, abrí `config.js` → editá el bloque `EMAILJS_CONFIG`:
+   ```js
+   const EMAILJS_CONFIG = {
+     publicKey: "tu Public Key",
+     serviceId: "tu Service ID",
+     templateId: "tu Template ID",
+     backupEmail: "el correo donde querés recibir el backup",
+     backupIntervalDays: 7, // cada cuántos días se manda (7 = semanal)
+   };
+   ```
+6. Guardá el cambio ("Commit changes"). La próxima vez que se abra la
+   app (en cualquier dispositivo), si ya pasaron los días configurados
+   desde el último envío, manda el correo solo. Podés ver el estado
+   en la pestaña **Sincronizar**, abajo, donde dice "Backup por
+   correo: ...".
+
+Nota: por tamaño, el correo no incluye las fotos de los trabajos
+(solo avisa cuántas tiene cada uno) — esas siguen a salvo en Firebase
+y en el respaldo manual `.json` de más abajo.
+
+---
+
 ## Respaldo manual (por las dudas)
 
 En la pestaña **Sincronizar** hay botones para descargar un archivo

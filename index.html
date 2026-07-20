@@ -36,13 +36,15 @@
       <h2>Nueva orden de trabajo</h2>
       <div class="grid2">
         <div class="field">
-          <label>Cliente</label>
+          <label>Cliente *</label>
           <input type="text" id="f_cliente" list="clientesList" placeholder="Buscar o escribir nombre nuevo...">
           <datalist id="clientesList"></datalist>
+          <span class="field-error-msg">⚠️ Falta el nombre del cliente</span>
         </div>
         <div class="field">
-          <label>Teléfono</label>
+          <label>Teléfono *</label>
           <input type="tel" id="f_telefono" placeholder="Ej: 549376...">
+          <span class="field-error-msg">⚠️ Falta el teléfono</span>
         </div>
       </div>
       <div class="grid2">
@@ -51,8 +53,9 @@
           <input type="date" id="f_fecha">
         </div>
         <div class="field">
-          <label>Equipo</label>
+          <label>Equipo *</label>
           <input type="text" id="f_equipo" placeholder="Ej: Notebook Lenovo, TV Samsung...">
+          <span class="field-error-msg">⚠️ Falta el equipo</span>
         </div>
       </div>
       <div class="field">
@@ -61,8 +64,9 @@
       </div>
       <div id="fotoPreview" class="foto-preview"></div>
       <div class="field">
-        <label>Descripción del trabajo</label>
+        <label>Descripción del trabajo *</label>
         <textarea id="f_desc" placeholder="Ej: cambio de fuente, no enciende, limpieza..."></textarea>
+        <span class="field-error-msg">⚠️ Falta la descripción del trabajo</span>
       </div>
       <div class="grid2">
         <div class="field">
@@ -265,9 +269,9 @@
     </div>
 
     <div class="panel">
-      <h2>Recuperar datos de antes de Firebase</h2>
-      <p class="hint">Si este dispositivo tenía trabajos o clientes cargados ANTES de conectar con Firebase, tocá esto para buscarlos y subirlos. Solo hace falta una vez, y solo funciona en el dispositivo donde se cargaron originalmente.</p>
-      <button class="btn-ghost btn-sm" id="btnRecuperarViejos">🔄 Buscar y recuperar datos viejos de este dispositivo</button>
+      <h2>Backup automático por correo</h2>
+      <p class="hint">Cada cierto tiempo (configurable), la app manda sola un resumen de todos los datos a la casilla de correo que configures — sin que nadie tenga que apretar nada. Ver README para activarlo.</p>
+      <p id="backupStatus" class="drive-status">Backup por correo: no configurado todavía.</p>
     </div>
 
     <div class="panel">
@@ -283,8 +287,18 @@
 
 </div>
 
+<div class="modal-overlay" id="appModal">
+  <div class="modal-box">
+    <div class="modal-icon" id="appModalIcon">✅</div>
+    <p class="modal-msg" id="appModalMsg"></p>
+    <button class="btn-primary" id="appModalClose" style="margin-top:14px;">Aceptar</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="config.js"></script>
 <script src="db.js"></script>
+<script src="backup.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

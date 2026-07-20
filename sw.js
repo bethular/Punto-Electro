@@ -1,10 +1,11 @@
-const CACHE_NAME = 'punto-electro-v3-firebase';
+const CACHE_NAME = 'punto-electro-v4-backup';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
   './db.js',
+  './backup.js',
   './config.js',
   './manifest.json',
   './icons/icon-192.png',
@@ -32,7 +33,7 @@ self.addEventListener('activate', (event) => {
 // no interferir con la sincronización en tiempo real.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  const bypass = ['google', 'googleapis', 'gstatic', 'firebaseio', 'firebase'];
+  const bypass = ['google', 'googleapis', 'gstatic', 'firebaseio', 'firebase', 'emailjs', 'jsdelivr'];
   if (bypass.some((s) => url.origin.includes(s))) {
     return;
   }

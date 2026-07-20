@@ -292,6 +292,27 @@ button:active{transform:scale(.98);}
 .cliente-info p{margin:0;font-size:12px;color:var(--text-muted);}
 .cliente-stats{font-family:var(--font-mono);font-size:12px;color:var(--teal);white-space:nowrap;}
 
+/* Campos obligatorios con error */
+.field-error-msg{display:none;color:var(--danger);font-size:11px;margin-top:4px;}
+.field.field-error input,
+.field.field-error select,
+.field.field-error textarea{border-color:var(--danger);}
+.field.field-error label{color:var(--danger);}
+.field.field-error .field-error-msg{display:block;}
+
+/* Ventana modal (éxito / error) */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.65);
+  display:none;align-items:center;justify-content:center;z-index:200;padding:20px;
+}
+.modal-overlay.open{display:flex;}
+.modal-box{
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:26px 22px;max-width:340px;width:100%;text-align:center;
+}
+.modal-icon{font-size:34px;margin-bottom:10px;}
+.modal-msg{font-size:14px;line-height:1.6;color:var(--text);white-space:pre-line;}
+
 /* Lightbox */
 .lightbox{
   position:fixed;inset:0;background:rgba(0,0,0,.85);

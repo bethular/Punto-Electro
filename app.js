@@ -143,6 +143,33 @@ function quitarFotoPendiente(i) {
   renderFotoPreview();
 }
 
+// ---------------- VENTANA MODAL (éxito / error) ----------------
+function showModal(mensaje, tipo) {
+  document.getElementById('appModalIcon').textContent = tipo === 'error' ? '⚠️' : '✅';
+  document.getElementById('appModalMsg').textContent = mensaje;
+  document.getElementById('appModal').classList.add('open');
+}
+document.getElementById('appModalClose').addEventListener('click', () => {
+  document.getElementById('appModal').classList.remove('open');
+});
+
+// ---------------- VALIDACIÓN DE CAMPOS OBLIGATORIOS ----------------
+function marcarCampoError(inputId) {
+  const input = document.getElementById(inputId);
+  const field = input.closest('.field');
+  if (field) field.classList.add('field-error');
+}
+function limpiarErroresForm() {
+  document.querySelectorAll('#tab-reparaciones .field-error').forEach(f => f.classList.remove('field-error'));
+}
+// Sacar el aviso de error apenas el usuario empieza a completar el campo
+['f_cliente', 'f_telefono', 'f_equipo', 'f_desc'].forEach(id => {
+  document.getElementById(id).addEventListener('input', (e) => {
+    const field = e.target.closest('.field');
+    if (field) field.classList.remove('field-error');
+  });
+});
+
 // ---------------- NUEVA ORDEN DE TRABAJO ----------------
 document.getElementById('btnAdd').addEventListener('click', async () => {
   const clienteNombre = document.getElementById('f_cliente').value.trim();
@@ -158,8 +185,18 @@ document.getElementById('btnAdd').addEventListener('click', async () => {
   const movMonto = parseFloat(document.getElementById('f_mov_monto').value) || 0;
   const movDetalle = document.getElementById('f_mov_detalle').value.trim();
 
-  if (!clienteNombre) { alert('Falta cargar: el nombre del cliente.'); return; }
-  if (!equipo && !desc) { alert('Falta cargar: el equipo o la descripción del trabajo (al menos uno de los dos).'); return; }
+  limpiarErroresForm();
+  const camposFaltantes = [];
+  if (!clienteNombre) { marcarCampoError('f_cliente'); camposFaltantes.push('el nombre del cliente'); }
+  if (!telefono) { marcarCampoError('f_telefono'); camposFaltantes.push('el teléfono'); }
+  if (!equipo) { marcarCampoError('f_equipo'); camposFaltantes.push('el equipo'); }
+  if (!desc) { marcarCampoError('f_desc'); camposFaltantes.push('la descripción del trabajo'); }
+
+  if (camposFaltantes.length) {
+    showModal('Faltan datos obligatorios:\n\n' + camposFaltantes.map(c => '•  ' + c).join('\n'), 'error');
+    document.querySelector('#tab-reparaciones .field-error input, #tab-reparaciones .field-error textarea').focus();
+    return;
+  }
 
   try {
     const cliente = await findOrCreateClientByNameAndPhone(clienteNombre, telefono);
@@ -184,7 +221,7 @@ document.getElementById('btnAdd').addEventListener('click', async () => {
     });
   } catch (e) {
     console.error(e);
-    alert('No se pudo guardar el trabajo. Error: ' + e.message);
+    showModal('No se pudo guardar el trabajo.\n\nError: ' + e.message, 'error');
     return;
   }
 
@@ -203,8 +240,10 @@ document.getElementById('btnAdd').addEventListener('click', async () => {
   document.getElementById('f_fecha').value = todayStr();
   pendingFotos = [];
   renderFotoPreview();
+  limpiarErroresForm();
 
   await renderAll();
+  showModal('Se cargaron los datos exitosamente', 'success');
 });
 
 function clienteNombrePorId(id) {
@@ -908,77 +947,6 @@ document.getElementById('importFileInput').addEventListener('change', async (e) 
   e.target.value = '';
 });
 
-// ---------------- RECUPERAR DATOS DE ANTES DE FIREBASE ----------------
-document.getElementById('btnRecuperarViejos').addEventListener('click', async () => {
-  const boton = document.getElementById('btnRecuperarViejos');
-  boton.disabled = true;
-  boton.textContent = 'Buscando...';
-  try {
-    const req = indexedDB.open('punto-electro-db');
-    req.onsuccess = async (e) => {
-      const oldDb = e.target.result;
-      const storeNames = Array.from(oldDb.objectStoreNames);
-      if (!storeNames.includes('clients') && !storeNames.includes('jobs')) {
-        alert('No se encontraron datos viejos guardados en este dispositivo.');
-        boton.disabled = false;
-        boton.textContent = '🔄 Buscar y recuperar datos viejos de este dispositivo';
-        oldDb.close();
-        return;
-      }
-      const tx = oldDb.transaction(storeNames, 'readonly');
-      const leerTodo = (store) => new Promise((resolve) => {
-        if (!storeNames.includes(store)) return resolve([]);
-        const r = tx.objectStore(store).getAll();
-        r.onsuccess = () => resolve(r.result || []);
-        r.onerror = () => resolve([]);
-      });
-      const [clientsViejos, jobsViejos, cajaVieja] = await Promise.all([
-        leerTodo('clients'), leerTodo('jobs'), leerTodo('caja'),
-      ]);
-      oldDb.close();
-
-      if (!clientsViejos.length && !jobsViejos.length && !cajaVieja.length) {
-        alert('No se encontraron datos viejos guardados en este dispositivo.');
-        boton.disabled = false;
-        boton.textContent = '🔄 Buscar y recuperar datos viejos de este dispositivo';
-        return;
-      }
-
-      const ok = confirm(
-        `Se encontraron en este dispositivo:\n` +
-        `- ${clientsViejos.length} cliente(s)\n` +
-        `- ${jobsViejos.length} trabajo(s)\n` +
-        `- ${cajaVieja.length} movimiento(s) de caja\n\n` +
-        `¿Subirlos ahora a la base de datos compartida?`
-      );
-      if (!ok) {
-        boton.disabled = false;
-        boton.textContent = '🔄 Buscar y recuperar datos viejos de este dispositivo';
-        return;
-      }
-
-      boton.textContent = 'Subiendo...';
-      for (const c of clientsViejos) await saveClient(c);
-      for (const j of jobsViejos) await saveJob(j);
-      for (const m of cajaVieja) await saveCajaMov(m);
-
-      alert('¡Listo! Se recuperaron los datos y ya están sincronizados.');
-      boton.textContent = '✓ Datos recuperados';
-      await renderAll();
-    };
-    req.onerror = () => {
-      alert('No se encontraron datos viejos guardados en este dispositivo.');
-      boton.disabled = false;
-      boton.textContent = '🔄 Buscar y recuperar datos viejos de este dispositivo';
-    };
-  } catch (e) {
-    console.error(e);
-    alert('Error al buscar datos viejos: ' + e.message);
-    boton.disabled = false;
-    boton.textContent = '🔄 Buscar y recuperar datos viejos de este dispositivo';
-  }
-});
-
 // ---------------- SERVICE WORKER ----------------
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -994,3 +962,4 @@ setOnChangeCallback(() => {
 });
 initFirestoreSync();
 renderAll();
+checkAndSendBackup();
