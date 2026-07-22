@@ -1,4 +1,4 @@
-const CACHE_NAME = 'punto-electro-v4-backup';
+const CACHE_NAME = 'punto-electro-v5-auto-update';
 const ASSETS = [
   './',
   './index.html',
@@ -16,7 +16,14 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
+  // Ya NO se activa sola de una: espera a que el usuario toque
+  // "Actualizar" en el cartel de la app (ver mensaje SKIP_WAITING abajo).
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (event) => {

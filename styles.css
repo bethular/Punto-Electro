@@ -300,6 +300,21 @@ button:active{transform:scale(.98);}
 .field.field-error label{color:var(--danger);}
 .field.field-error .field-error-msg{display:block;}
 
+/* Cartel de "hay una versión nueva" */
+.update-banner{
+  position:fixed;left:16px;right:16px;bottom:16px;z-index:150;
+  max-width:728px;margin:0 auto;
+  background:var(--surface-raised);border:1px solid var(--copper);border-radius:12px;
+  padding:14px 16px;display:none;align-items:center;justify-content:space-between;gap:12px;
+  box-shadow:0 6px 20px rgba(0,0,0,.4);
+}
+.update-banner.open{display:flex;}
+.update-banner span{font-size:13px;color:var(--text);}
+.update-banner .btn-primary{width:auto;margin:0;padding:8px 14px;font-size:13px;white-space:nowrap;}
+@media(max-width:480px){
+  .update-banner{flex-direction:column;align-items:stretch;text-align:center;}
+}
+
 /* Ventana modal (éxito / error) */
 .modal-overlay{
   position:fixed;inset:0;background:rgba(0,0,0,.65);

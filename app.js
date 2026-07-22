@@ -36,6 +36,35 @@ function fileToDataUrl(file) {
     reader.readAsDataURL(file);
   });
 }
+// Achica y comprime la foto antes de guardarla (Firestore no acepta
+// documentos de más de ~1MB, y una foto de celular sin comprimir sola
+// ya puede pesar varios MB). Reduce a un máximo de 1000px de lado más
+// largo y calidad JPEG 70% — de sobra para ver el equipo con claridad.
+function comprimirFoto(file, maxLado = 1000, calidad = 0.7) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = () => { img.src = reader.result; };
+    reader.onerror = reject;
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height && width > maxLado) {
+        height = Math.round(height * (maxLado / width));
+        width = maxLado;
+      } else if (height > maxLado) {
+        width = Math.round(width * (maxLado / height));
+        height = maxLado;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', calidad));
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 function genLocalId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
@@ -124,12 +153,20 @@ document.getElementById('f_mov_tipo').addEventListener('change', (e) => {
 // ---------------- FOTOS EN EL FORM ----------------
 document.getElementById('f_fotos').addEventListener('change', async (e) => {
   const files = Array.from(e.target.files);
-  for (const file of files) {
-    const dataUrl = await fileToDataUrl(file);
-    pendingFotos.push(dataUrl);
+  const boton = e.target;
+  boton.disabled = true;
+  try {
+    for (const file of files) {
+      const dataUrl = await comprimirFoto(file);
+      pendingFotos.push(dataUrl);
+    }
+  } catch (err) {
+    console.error('Error al procesar foto:', err);
+    showModal('No se pudo procesar una de las fotos. Probá de nuevo.', 'error');
   }
   renderFotoPreview();
   e.target.value = '';
+  boton.disabled = false;
 });
 
 function renderFotoPreview() {
@@ -221,7 +258,11 @@ document.getElementById('btnAdd').addEventListener('click', async () => {
     });
   } catch (e) {
     console.error(e);
-    showModal('No se pudo guardar el trabajo.\n\nError: ' + e.message, 'error');
+    const esErrorTamano = /longer than|too large|1048487/i.test(e.message || '');
+    const mensaje = esErrorTamano
+      ? 'Las fotos son demasiado pesadas para guardarse juntas. Sacá una foto de menos, o probá con menos fotos por trabajo.'
+      : 'No se pudo guardar el trabajo.\n\nError: ' + e.message;
+    showModal(mensaje, 'error');
     return;
   }
 
@@ -947,12 +988,51 @@ document.getElementById('importFileInput').addEventListener('change', async (e) 
   e.target.value = '';
 });
 
-// ---------------- SERVICE WORKER ----------------
+// ---------------- SERVICE WORKER (con aviso de actualización) ----------------
+let swEsperando = null;
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(console.error);
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      // Ya había una versión nueva esperando cuando se abrió la app
+      if (reg.waiting) mostrarAvisoActualizacion(reg.waiting);
+
+      // Se detecta una versión nueva mientras la app está abierta
+      reg.addEventListener('updatefound', () => {
+        const nuevoSW = reg.installing;
+        if (!nuevoSW) return;
+        nuevoSW.addEventListener('statechange', () => {
+          if (nuevoSW.state === 'installed' && navigator.serviceWorker.controller) {
+            mostrarAvisoActualizacion(nuevoSW);
+          }
+        });
+      });
+
+      // Revisa si hay versión nueva cada vez que se vuelve a abrir/enfocar la app
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update();
+      });
+    }).catch(console.error);
+  });
+
+  // Cuando el usuario confirma, se activa la versión nueva y se recarga sola
+  let yaRecargando = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (yaRecargando) return;
+    yaRecargando = true;
+    window.location.reload();
   });
 }
+
+function mostrarAvisoActualizacion(swNuevo) {
+  swEsperando = swNuevo;
+  document.getElementById('updateBanner').classList.add('open');
+}
+
+document.getElementById('btnActualizarApp').addEventListener('click', () => {
+  if (swEsperando) swEsperando.postMessage({ type: 'SKIP_WAITING' });
+  document.getElementById('updateBanner').classList.remove('open');
+});
 
 // ---------------- ARRANQUE ----------------
 setOnChangeCallback(() => {
