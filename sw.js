@@ -1,4 +1,4 @@
-const CACHE_NAME = 'punto-electro-v12-sugerencias-propias';
+const CACHE_NAME = 'punto-electro-v13-menu-logo';
 const ASSETS = [
   './',
   './index.html',
@@ -9,7 +9,8 @@ const ASSETS = [
   './config.js',
   './manifest.json',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './assets/logo.png'
 ];
 
 self.addEventListener('install', (event) => {

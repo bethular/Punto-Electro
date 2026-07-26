@@ -18,18 +18,22 @@
 <body>
 <div class="app">
   <header>
+    <button class="hamburger-btn" id="btnMenu" aria-label="Menú">☰</button>
     <button class="settings-btn" id="btnSettings" aria-label="Apariencia">⚙️</button>
-    <p class="eyebrow">Registro / Reparaciones</p>
-    <h1>Punto Electro</h1>
+    <div class="logo-wrap">
+      <img src="assets/logo.png" alt="Punto Electro" class="logo-img">
+    </div>
   </header>
 
-  <nav class="tabs">
-    <button class="tab-btn active" data-tab="reparaciones">Reparaciones</button>
-    <button class="tab-btn" data-tab="clientes">Clientes</button>
-    <button class="tab-btn" data-tab="informes">Informes</button>
-    <button class="tab-btn" data-tab="caja">Caja</button>
-    <button class="tab-btn" data-tab="sync">Sincronizar</button>
-  </nav>
+  <div class="menu-overlay" id="menuOverlay">
+    <nav class="menu-panel" id="menuPanel">
+      <button class="tab-btn active" data-tab="reparaciones">🔧 Reparaciones</button>
+      <button class="tab-btn" data-tab="clientes">👤 Clientes</button>
+      <button class="tab-btn" data-tab="informes">📋 Informes</button>
+      <button class="tab-btn" data-tab="caja">💰 Caja</button>
+      <button class="tab-btn" data-tab="sync">🔄 Sincronizar</button>
+    </nav>
+  </div>
 
   <!-- ================= TAB: REPARACIONES ================= -->
   <section id="tab-reparaciones" class="tab-content active">
@@ -132,6 +136,7 @@
       </select>
     </div>
 
+    <p class="hint" id="pendientesOcultosHint" style="display:none;"></p>
     <div id="ledger" class="ledger"></div>
     <div id="emptyMsg" class="empty" style="display:none;"></div>
   </section>

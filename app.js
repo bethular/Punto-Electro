@@ -127,6 +127,16 @@ function pagoEstadoJob(job) {
   return 'pagado';
 }
 
+// ---------------- MENÚ HAMBURGUESA ----------------
+document.getElementById('btnMenu').addEventListener('click', () => {
+  document.getElementById('menuOverlay').classList.add('open');
+});
+document.getElementById('menuOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'menuOverlay') {
+    document.getElementById('menuOverlay').classList.remove('open');
+  }
+});
+
 // ---------------- TABS ----------------
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -134,6 +144,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    document.getElementById('menuOverlay').classList.remove('open');
   });
 });
 
@@ -920,6 +931,15 @@ function renderLedger() {
     const matchesEstado = filterEstado === 'todos' || j.estado === filterEstado;
     const pagoEstado = pagoEstadoJob(j);
     const matchesPago = filterPago === 'todos' || (filterPago === 'debe' ? (pagoEstado === 'debe' || pagoEstado === 'parcial') : pagoEstado === 'pagado');
+
+    // Los pendientes "al día" (todavía no vencidos) quedan ocultos de la
+    // lista general, para no saturarla — solo se muestran si están
+    // vencidos (⚠️ Xd sin entregar), si los buscás por texto, o si elegís
+    // "Pendiente" a propósito en el filtro de estado.
+    const esOlvidadoJob = j.estado === 'pendiente' && diasDesde(j.fecha) > DIAS_OLVIDADO;
+    const seBuscaAPropiosito = !!filterText || filterEstado === 'pendiente';
+    if (j.estado === 'pendiente' && !esOlvidadoJob && !seBuscaAPropiosito) return false;
+
     return matchesText && matchesEstado && matchesPago;
   });
 
@@ -945,6 +965,20 @@ function renderLedger() {
 
   const ledger = document.getElementById('ledger');
   const emptyMsg = document.getElementById('emptyMsg');
+
+  const pendientesAlDiaOcultos = currentJobs.filter(j =>
+    j.estado === 'pendiente' && diasDesde(j.fecha) <= DIAS_OLVIDADO
+  ).length;
+  const hintOcultos = document.getElementById('pendientesOcultosHint');
+  if (hintOcultos) {
+    const seBuscaAPropiosito = !!filterText || filterEstado === 'pendiente';
+    if (pendientesAlDiaOcultos > 0 && !seBuscaAPropiosito) {
+      hintOcultos.style.display = 'block';
+      hintOcultos.textContent = `ℹ️ Hay ${pendientesAlDiaOcultos} trabajo(s) pendiente(s) al día, ocultos de esta lista (todavía no vencen). Buscalos por nombre o elegí "Pendiente" en el filtro para verlos.`;
+    } else {
+      hintOcultos.style.display = 'none';
+    }
+  }
 
   if (filtered.length === 0) {
     ledger.innerHTML = '';
