@@ -85,6 +85,7 @@ async function enviarBackupPorCorreo() {
     `Clientes: ${data.clients.length}\n` +
     `Trabajos: ${data.jobs.length}\n` +
     `Movimientos de caja: ${data.caja.length}\n` +
+    `Informes técnicos: ${(data.informes || []).length}\n` +
     `Generado: ${new Date().toLocaleString('es-AR')}`;
 
   await emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, {

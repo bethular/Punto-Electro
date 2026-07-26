@@ -14,6 +14,7 @@
 let _clients = [];
 let _jobs = [];
 let _caja = [];
+let _informes = [];
 let _onChangeCallback = null;
 let _firestoreReady = false;
 
@@ -56,6 +57,10 @@ async function initFirestoreSync() {
     });
     db.collection('caja').onSnapshot((snap) => {
       _caja = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (_onChangeCallback) _onChangeCallback();
+    });
+    db.collection('informes').onSnapshot((snap) => {
+      _informes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       if (_onChangeCallback) _onChangeCallback();
     });
   } catch (e) {
@@ -144,15 +149,63 @@ async function deleteCajaMov(id) {
   await firestore().collection('caja').doc(id).delete();
 }
 
+// ---------- INFORMES TÉCNICOS (para aseguradoras) ----------
+
+async function getAllInformes() {
+  return [..._informes].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+}
+
+async function saveInforme(informe) {
+  if (!informe.id) informe.id = genId();
+  if (!informe.creado) informe.creado = new Date().toISOString();
+  await firestore().collection('informes').doc(informe.id).set(informe);
+  return informe;
+}
+
+async function deleteInforme(id) {
+  await firestore().collection('informes').doc(id).delete();
+}
+
+// ---------- CAMPOS PERSONALIZADOS DEL INFORME TÉCNICO ----------
+// Cada aseguradora pide datos distintos, así que esta lista de campos
+// (además de Cliente/Teléfono/Fecha, que son fijos) la define y edita
+// el usuario desde la app — no está fija en el código.
+const CAMPOS_INFORME_DEFAULT = [
+  { id: 'email', label: 'Email', tipo: 'email', obligatorio: false },
+  { id: 'dni', label: 'DNI / Documento', tipo: 'texto', obligatorio: false },
+  { id: 'direccion', label: 'Dirección', tipo: 'texto', obligatorio: false },
+  { id: 'aseguradora', label: 'Aseguradora', tipo: 'texto', obligatorio: false },
+  { id: 'poliza', label: 'N° de póliza', tipo: 'texto', obligatorio: false },
+  { id: 'equipo', label: 'Equipo', tipo: 'texto', obligatorio: false },
+  { id: 'diagnostico', label: 'Diagnóstico técnico', tipo: 'textarea', obligatorio: false },
+];
+
+async function getCamposInforme() {
+  try {
+    const doc = await firestore().collection('config').doc('camposInforme').get();
+    if (doc.exists && Array.isArray(doc.data().campos) && doc.data().campos.length) {
+      return doc.data().campos;
+    }
+  } catch (e) {
+    console.error('Error leyendo campos del informe:', e);
+  }
+  return CAMPOS_INFORME_DEFAULT;
+}
+
+async function saveCamposInforme(campos) {
+  await firestore().collection('config').doc('camposInforme').set({ campos, actualizado: new Date().toISOString() });
+}
+
 // ---------- EXPORTAR / IMPORTAR (respaldo manual) ----------
 
 async function exportAllData() {
   return JSON.stringify({
-    version: 3,
+    version: 4,
     exportedAt: new Date().toISOString(),
     clients: _clients,
     jobs: _jobs,
     caja: _caja,
+    informes: _informes,
   });
 }
 
@@ -161,20 +214,23 @@ async function importAllData(jsonOrObj) {
   const db = firestore();
   const batch = db.batch();
 
-  // Borra lo que hay actualmente en las 3 colecciones
-  const [clientsSnap, jobsSnap, cajaSnap] = await Promise.all([
+  // Borra lo que hay actualmente en las 4 colecciones
+  const [clientsSnap, jobsSnap, cajaSnap, informesSnap] = await Promise.all([
     db.collection('clients').get(),
     db.collection('jobs').get(),
     db.collection('caja').get(),
+    db.collection('informes').get(),
   ]);
   clientsSnap.docs.forEach(d => batch.delete(d.ref));
   jobsSnap.docs.forEach(d => batch.delete(d.ref));
   cajaSnap.docs.forEach(d => batch.delete(d.ref));
+  informesSnap.docs.forEach(d => batch.delete(d.ref));
 
   // Carga lo nuevo
   (data.clients || []).forEach(c => batch.set(db.collection('clients').doc(c.id || genId()), c));
   (data.jobs || []).forEach(j => batch.set(db.collection('jobs').doc(j.id || genId()), j));
   (data.caja || []).forEach(m => batch.set(db.collection('caja').doc(m.id || genId()), m));
+  (data.informes || []).forEach(i => batch.set(db.collection('informes').doc(i.id || genId()), i));
 
   await batch.commit();
 }

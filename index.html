@@ -26,6 +26,7 @@
   <nav class="tabs">
     <button class="tab-btn active" data-tab="reparaciones">Reparaciones</button>
     <button class="tab-btn" data-tab="clientes">Clientes</button>
+    <button class="tab-btn" data-tab="informes">Informes</button>
     <button class="tab-btn" data-tab="caja">Caja</button>
     <button class="tab-btn" data-tab="sync">Sincronizar</button>
   </nav>
@@ -36,10 +37,10 @@
     <div class="panel">
       <h2>Nueva orden de trabajo</h2>
       <div class="grid2">
-        <div class="field">
+        <div class="field" style="position:relative;">
           <label>Cliente *</label>
-          <input type="text" id="f_cliente" list="clientesList" placeholder="Buscar o escribir nombre nuevo...">
-          <datalist id="clientesList"></datalist>
+          <input type="text" id="f_cliente" autocomplete="off" placeholder="Buscar o escribir nombre nuevo...">
+          <div id="clienteSugerencias" class="suggestions-dropdown"></div>
           <span class="field-error-msg">⚠️ Falta el nombre del cliente</span>
         </div>
         <div class="field">
@@ -173,6 +174,43 @@
     </div>
   </section>
 
+  <!-- ================= TAB: INFORMES TÉCNICOS ================= -->
+  <section id="tab-informes" class="tab-content">
+    <div class="panel">
+      <div class="panel-header-row">
+        <h2 style="margin:0;">Nuevo informe técnico</h2>
+        <button class="btn-ghost btn-sm" id="btnEditarCampos">⚙️ Editar campos</button>
+      </div>
+      <p class="hint">Para trámites con aseguradoras — se genera como PDF y se manda por WhatsApp o email. Si el cliente ya está cargado, se completa solo. Los campos de abajo (aparte de Cliente/Teléfono/Fecha) los definís vos con "⚙️ Editar campos", según lo que pida cada aseguradora.</p>
+      <div class="grid2">
+        <div class="field">
+          <label>Cliente</label>
+          <input type="text" id="i_cliente" list="informesClientesList" placeholder="Nombre del cliente">
+          <datalist id="informesClientesList"></datalist>
+        </div>
+        <div class="field">
+          <label>Teléfono</label>
+          <input type="tel" id="i_telefono" placeholder="Ej: 549376...">
+        </div>
+      </div>
+      <div class="field">
+        <label>Fecha</label>
+        <input type="date" id="i_fecha">
+      </div>
+
+      <div id="informeCamposDinamicos"></div>
+
+      <button class="btn-primary" id="btnAddInforme">+ Generar informe técnico</button>
+    </div>
+
+    <div class="filters">
+      <input type="text" id="filterInformes" placeholder="Buscar por cliente o equipo...">
+    </div>
+
+    <div id="informesLista"></div>
+    <div id="informesEmptyMsg" class="empty" style="display:none;"></div>
+  </section>
+
   <!-- ================= TAB: CAJA ================= -->
   <section id="tab-caja" class="tab-content">
 
@@ -214,6 +252,11 @@
       </div>
       <p class="hint" style="margin-top:10px;">Incluye movimientos de trabajos y de caja general juntos — es la foto completa del negocio en ese período.</p>
       <button class="btn-ghost btn-sm" id="btnCompartirResumen">💬 Compartir por WhatsApp</button>
+    </div>
+
+    <div class="panel">
+      <h2>Estadísticas</h2>
+      <div id="statsBody"></div>
     </div>
 
     <div class="panel">
@@ -310,6 +353,31 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="camposOverlay">
+  <div class="modal-box" style="max-width:420px;">
+    <h3 style="font-family:var(--font-display);font-size:1rem;margin:0 0 10px;text-transform:uppercase;">Campos del informe</h3>
+    <p class="hint" style="margin-top:0;">Cliente, Teléfono y Fecha siempre están. Acá agregás o editás el resto (DNI, aseguradora, póliza, o lo que necesites).</p>
+    <div id="camposListaEditor"></div>
+    <button class="btn-ghost btn-sm" id="btnAgregarCampo" style="width:100%;margin-top:6px;">+ Agregar campo</button>
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn-primary" style="margin:0;" id="btnGuardarCampos">Guardar cambios</button>
+      <button class="btn-ghost" id="btnCancelarCampos">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="envioOverlay">
+  <div class="modal-box">
+    <div class="modal-icon">📤</div>
+    <p class="modal-msg">¿Cómo querés enviar el informe?</p>
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn-ghost" id="btnEnvioEmail">📧 Email</button>
+      <button class="btn-ghost" id="btnEnvioWhatsApp">💬 WhatsApp</button>
+    </div>
+    <button class="btn-ghost btn-sm" id="btnEnvioCancelar" style="width:100%;margin-top:8px;">Cancelar</button>
+  </div>
+</div>
+
 <div class="update-banner" id="updateBanner">
   <span>🔄 Hay una versión nueva de la app.</span>
   <button class="btn-primary" id="btnActualizarApp">Actualizar ahora</button>
@@ -323,6 +391,7 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="config.js"></script>
 <script src="db.js"></script>

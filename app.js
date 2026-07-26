@@ -5,12 +5,17 @@
 let currentClients = [];
 let currentJobs = [];
 let currentCaja = [];
+let currentInformes = [];
 let pendingFotos = []; // fotos cargadas en el form, esperando "Agregar"
 let viendoClienteId = null;
 let filterPagoState = 'todos';
 let cajaQuickAddTipo = 'ingreso';
 let resumenTipo = 'semana';
 let resumenOffset = 0;
+let pendingEnvioEmail = null;
+let pendingEnvioWhatsApp = null;
+
+const DIAS_OLVIDADO = 7; // a partir de cuántos días sin entregar se marca como "olvidado"
 
 function fmtMoney(n) {
   return '$ ' + Number(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
@@ -72,6 +77,21 @@ function waLink(telefono) {
   const digits = (telefono || '').replace(/\D/g, '');
   return digits ? `https://wa.me/${digits}` : null;
 }
+function diasDesde(fechaStr) {
+  if (!fechaStr) return 0;
+  const f = new Date(fechaStr + 'T00:00:00');
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return Math.floor((hoy - f) / (1000 * 60 * 60 * 24));
+}
+function descargarPDF(blob, nombreArchivo) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombreArchivo;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
 
 // ---------------- MIGRACIÓN / NORMALIZACIÓN DE TRABAJOS ----------------
 // Los trabajos viejos tenían ingreso/gasto sueltos en vez de "movimientos".
@@ -120,29 +140,53 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 // ---------------- INIT ----------------
 document.getElementById('f_fecha').value = todayStr();
 document.getElementById('cajaTab_fecha').value = todayStr();
+document.getElementById('i_fecha').value = todayStr();
 
 async function renderAll() {
   currentClients = await getAllClients();
   currentJobs = (await getAllJobs()).map(normalizeJob);
   currentCaja = await getAllCaja();
-  renderClientDatalist();
+  currentInformes = await getAllInformes();
   renderLedger();
   renderClientesLista();
   renderCajaLista();
   renderResumen();
+  renderEstadisticas();
+  renderInformesClientDatalist();
+  renderInformesLista();
   if (viendoClienteId) renderClienteDetalle(viendoClienteId);
 }
 
-function renderClientDatalist() {
-  const dl = document.getElementById('clientesList');
-  dl.innerHTML = currentClients.map(c => `<option value="${escapeHtml(c.nombre)}">`).join('');
-}
-
-// Autocompletar teléfono cuando el nombre coincide con un cliente existente
+// Sugerencias de cliente mientras se escribe (propias, no datalist nativo:
+// así nunca se muestra la lista completa, solo lo que va coincidiendo).
 document.getElementById('f_cliente').addEventListener('input', (e) => {
-  const nombre = e.target.value.trim().toLowerCase();
-  const match = currentClients.find(c => c.nombre.trim().toLowerCase() === nombre);
-  if (match) document.getElementById('f_telefono').value = match.telefono || '';
+  const texto = e.target.value.trim().toLowerCase();
+  const dropdown = document.getElementById('clienteSugerencias');
+  if (!texto) { dropdown.classList.remove('open'); dropdown.innerHTML = ''; return; }
+  const coincidencias = currentClients
+    .filter(c => c.nombre.toLowerCase().includes(texto))
+    .slice(0, 6);
+  if (!coincidencias.length) { dropdown.classList.remove('open'); dropdown.innerHTML = ''; return; }
+  dropdown.innerHTML = coincidencias.map(c =>
+    `<div class="suggestion-item" data-id="${c.id}">${escapeHtml(c.nombre)}${c.telefono ? ' · ' + escapeHtml(c.telefono) : ''}</div>`
+  ).join('');
+  dropdown.classList.add('open');
+});
+document.getElementById('clienteSugerencias').addEventListener('mousedown', (e) => {
+  const item = e.target.closest('.suggestion-item');
+  if (!item) return;
+  const cliente = currentClients.find(c => c.id === item.dataset.id);
+  if (!cliente) return;
+  document.getElementById('f_cliente').value = cliente.nombre;
+  document.getElementById('f_telefono').value = cliente.telefono || '';
+  const dropdown = document.getElementById('clienteSugerencias');
+  dropdown.classList.remove('open');
+  dropdown.innerHTML = '';
+});
+document.addEventListener('click', (e) => {
+  if (e.target.id !== 'f_cliente' && !e.target.closest('#clienteSugerencias')) {
+    document.getElementById('clienteSugerencias').classList.remove('open');
+  }
 });
 
 // Mostrar/ocultar subtipo de ingreso según el tipo de movimiento inicial
@@ -268,6 +312,7 @@ document.getElementById('btnAdd').addEventListener('click', async () => {
 
   // reset form
   document.getElementById('f_cliente').value = '';
+  document.getElementById('clienteSugerencias').classList.remove('open');
   document.getElementById('f_telefono').value = '';
   document.getElementById('f_equipo').value = '';
   document.getElementById('f_desc').value = '';
@@ -461,6 +506,274 @@ async function enviarComprobante(jobId) {
   }
 }
 
+function avisarListo(jobId) {
+  const job = currentJobs.find(j => j.id === jobId);
+  if (!job) return;
+  const nombre = clienteNombrePorId(job.clientId);
+  const telefono = clienteTelefonoPorId(job.clientId);
+  const wa = waLink(telefono);
+  if (!wa) { showModal('Este cliente no tiene teléfono cargado.', 'error'); return; }
+  const texto = `Hola ${nombre}, tu ${job.equipo || 'equipo'} ya está listo para retirar. — Punto Electro`;
+  window.open(`${wa}?text=${encodeURIComponent(texto)}`, '_blank');
+}
+
+// ---------------- ESTILO COMPARTIDO DE LOS PDF ----------------
+function encabezadoPDF(doc, titulo, numero) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  // Franja superior oscura con el nombre del negocio
+  doc.setFillColor(18, 21, 26);
+  doc.rect(0, 0, pageWidth, 34, 'F');
+  // Barra de acento color cobre
+  doc.setFillColor(201, 121, 63);
+  doc.rect(0, 34, pageWidth, 2.5, 'F');
+
+  doc.setTextColor(234, 230, 218);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(19);
+  doc.text('PUNTO ELECTRO', 14, 16);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(180, 190, 185);
+  doc.text('Servicio técnico de reparaciones', 14, 23);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(255, 255, 255);
+  doc.text(titulo, pageWidth - 14, 15, { align: 'right' });
+  if (numero) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(200, 195, 185);
+    doc.text(numero, pageWidth - 14, 22, { align: 'right' });
+  }
+
+  doc.setTextColor(30, 28, 24);
+  doc.setFont('helvetica', 'normal');
+  return 46; // posición Y donde empieza el contenido
+}
+
+function piePDF(doc) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  doc.setDrawColor(215, 210, 200);
+  doc.setLineWidth(0.3);
+  doc.line(14, pageHeight - 20, pageWidth - 14, pageHeight - 20);
+  doc.setFontSize(8);
+  doc.setTextColor(130, 125, 115);
+  doc.text('Punto Electro — generado el ' + new Date().toLocaleString('es-AR'), 14, pageHeight - 13);
+  doc.setTextColor(30, 28, 24);
+}
+
+// Dibuja una etiqueta chica arriba y el valor debajo, estilo "campo de formulario"
+function campoPDF(doc, x, y, ancho, label, valor) {
+  doc.setFontSize(7.5);
+  doc.setTextColor(140, 135, 125);
+  doc.text(label.toUpperCase(), x, y);
+  doc.setFontSize(10.5);
+  doc.setTextColor(30, 28, 24);
+  doc.text(valor || '-', x, y + 5.5, { maxWidth: ancho });
+}
+
+function generarPDFComprobante(job) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const cliente = clienteNombrePorId(job.clientId);
+  const telefono = clienteTelefonoPorId(job.clientId);
+
+  let y = encabezadoPDF(doc, 'COMPROBANTE', 'N° ' + (job.id || '').slice(-6).toUpperCase());
+
+  const colAncho = (pageWidth - 28 - 10) / 2;
+  campoPDF(doc, 14, y, colAncho, 'Cliente', cliente);
+  campoPDF(doc, 14 + colAncho + 10, y, colAncho, 'Teléfono', telefono);
+  y += 14;
+  campoPDF(doc, 14, y, colAncho, 'Equipo', job.equipo);
+  campoPDF(doc, 14 + colAncho + 10, y, colAncho, 'Fecha', fmtDate(job.fecha));
+  y += 14;
+
+  doc.setDrawColor(225, 220, 210);
+  doc.line(14, y, pageWidth - 14, y);
+  y += 8;
+
+  if (job.desc) {
+    doc.setFontSize(7.5);
+    doc.setTextColor(140, 135, 125);
+    doc.text('DETALLE DEL TRABAJO', 14, y);
+    y += 5.5;
+    doc.setFontSize(10.5);
+    doc.setTextColor(30, 28, 24);
+    const partes = doc.splitTextToSize(job.desc, pageWidth - 28);
+    doc.text(partes, 14, y);
+    y += partes.length * 5.5 + 6;
+  }
+
+  const presupuesto = Number(job.presupuesto || 0);
+  const pagado = totalIngresoJob(job);
+  const saldo = saldoJob(job);
+
+  // Caja de totales, alineada a la derecha
+  const boxAncho = 80;
+  const boxX = pageWidth - 14 - boxAncho;
+  let boxY = y;
+  doc.setFillColor(246, 243, 237);
+  const filas = [];
+  if (presupuesto > 0) filas.push(['Presupuesto', fmtMoney(presupuesto)]);
+  if (pagado > 0) filas.push(['Pagado', fmtMoney(pagado)]);
+  if (presupuesto > 0 && saldo > 0.01) filas.push(['Saldo pendiente', fmtMoney(saldo)]);
+  const boxAlto = 8 + filas.length * 7;
+  doc.roundedRect(boxX, boxY, boxAncho, boxAlto, 2, 2, 'F');
+  let filaY = boxY + 7;
+  filas.forEach(([label, valor]) => {
+    doc.setFontSize(9.5);
+    doc.setTextColor(90, 85, 75);
+    doc.text(label, boxX + 6, filaY);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 28, 24);
+    doc.text(valor, boxX + boxAncho - 6, filaY, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    filaY += 7;
+  });
+  y = boxY + boxAlto + 12;
+
+  doc.setFillColor(job.estado === 'entregado' ? 79 : 232, job.estado === 'entregado' ? 157 : 168, job.estado === 'entregado' ? 140 : 60);
+  doc.roundedRect(14, y, 46, 9, 2, 2, 'F');
+  doc.setFontSize(9);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.text((job.estado === 'entregado' ? 'ENTREGADO' : 'PENDIENTE'), 14 + 23, y + 6, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(30, 28, 24);
+
+  piePDF(doc);
+  return doc;
+}
+
+async function enviarComprobantePDF(jobId) {
+  const job = currentJobs.find(j => j.id === jobId);
+  if (!job) return;
+  const doc = generarPDFComprobante(job);
+  const blob = doc.output('blob');
+  const nombreArchivo = 'comprobante-' + (job.equipo || 'reparacion').replace(/\s+/g, '-') + '.pdf';
+  const file = new File([blob], nombreArchivo, { type: 'application/pdf' });
+
+  if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+    try {
+      await navigator.share({ files: [file], title: 'Comprobante Punto Electro' });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      console.error('Error al compartir PDF:', e);
+    }
+  }
+  descargarPDF(blob, nombreArchivo);
+  showModal('Se descargó el comprobante en PDF a tu dispositivo.', 'success');
+}
+
+// ---------------- FACTURACIÓN (comprobante de pago prolijo) ----------------
+// OJO: esto NO es una factura fiscal con CAE de AFIP — es un comprobante de
+// pago prolijo para darle al cliente. Para facturar de verdad (con validez
+// fiscal ante AFIP) hace falta un servicio de facturación electrónica
+// aparte; si lo necesitás, avisale a Claude y lo evaluamos como otra mejora.
+function generarPDFFactura(job) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const cliente = clienteNombrePorId(job.clientId);
+  const telefono = clienteTelefonoPorId(job.clientId);
+  const numero = 'PE-' + (job.fecha || todayStr()).replace(/-/g, '') + '-' + (job.id || '').slice(-4).toUpperCase();
+
+  let y = encabezadoPDF(doc, 'COMPROBANTE DE PAGO', 'N° ' + numero);
+
+  const colAncho = (pageWidth - 28 - 10) / 2;
+  campoPDF(doc, 14, y, colAncho, 'Cliente', cliente);
+  campoPDF(doc, 14 + colAncho + 10, y, colAncho, 'Teléfono', telefono);
+  y += 14;
+  campoPDF(doc, 14, y, colAncho, 'Fecha de emisión', fmtDate(todayStr()));
+  campoPDF(doc, 14 + colAncho + 10, y, colAncho, 'Fecha del trabajo', fmtDate(job.fecha));
+  y += 16;
+
+  // Tabla: Concepto | Importe
+  const tablaX = 14, tablaAncho = pageWidth - 28;
+  doc.setFillColor(18, 21, 26);
+  doc.rect(tablaX, y, tablaAncho, 9, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('CONCEPTO', tablaX + 4, y + 6);
+  doc.text('IMPORTE', tablaX + tablaAncho - 4, y + 6, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  y += 9;
+
+  const concepto = job.equipo ? `Servicio técnico — ${job.equipo}` : 'Servicio técnico';
+  const totalPagado = totalIngresoJob(job);
+  doc.setFillColor(250, 248, 244);
+  doc.rect(tablaX, y, tablaAncho, 11, 'F');
+  doc.setTextColor(30, 28, 24);
+  doc.setFontSize(10);
+  const conceptoLineas = doc.splitTextToSize(concepto, tablaAncho - 60);
+  doc.text(conceptoLineas, tablaX + 4, y + 7);
+  doc.text(fmtMoney(totalPagado), tablaX + tablaAncho - 4, y + 7, { align: 'right' });
+  y += 11 + conceptoLineas.length * 2;
+
+  if (job.desc) {
+    doc.setFontSize(8.5);
+    doc.setTextColor(120, 115, 105);
+    const detalleLineas = doc.splitTextToSize(job.desc, tablaAncho - 8);
+    doc.text(detalleLineas, tablaX + 4, y + 5);
+    y += detalleLineas.length * 4.5 + 8;
+  } else {
+    y += 8;
+  }
+
+  doc.setDrawColor(225, 220, 210);
+  doc.line(tablaX, y, tablaX + tablaAncho, y);
+  y += 10;
+
+  // Total, grande y destacado
+  doc.setFontSize(11);
+  doc.setTextColor(90, 85, 75);
+  doc.text('TOTAL PAGADO', tablaX + tablaAncho - 70, y);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(184, 103, 46);
+  doc.text(fmtMoney(totalPagado), tablaX + tablaAncho, y + 8, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(30, 28, 24);
+  y += 22;
+
+  doc.setFontSize(9);
+  doc.setTextColor(120, 115, 105);
+  doc.text('Comprobante de pago no fiscal — no reemplaza una factura de AFIP.', tablaX, y);
+  y += 10;
+  doc.setFontSize(11);
+  doc.setTextColor(30, 28, 24);
+  doc.text('¡Gracias por confiar en Punto Electro!', tablaX, y);
+
+  piePDF(doc);
+  return doc;
+}
+
+async function enviarFacturaPDF(jobId) {
+  const job = currentJobs.find(j => j.id === jobId);
+  if (!job) return;
+  const doc = generarPDFFactura(job);
+  const blob = doc.output('blob');
+  const nombreArchivo = 'factura-' + (job.equipo || 'reparacion').replace(/\s+/g, '-') + '.pdf';
+  const file = new File([blob], nombreArchivo, { type: 'application/pdf' });
+
+  if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+    try {
+      await navigator.share({ files: [file], title: 'Comprobante de pago — Punto Electro' });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      console.error('Error al compartir factura:', e);
+    }
+  }
+  descargarPDF(blob, nombreArchivo);
+  showModal('Se descargó el comprobante de pago en PDF a tu dispositivo.', 'success');
+}
+
 function subtipoLabel(subtipo) {
   if (subtipo === 'adelanto') return 'Adelanto';
   if (subtipo === 'pago_final') return 'Pago final';
@@ -472,10 +785,12 @@ function renderJobCardCompact(job) {
   const pagoEstado = pagoEstadoJob(job);
   const pagoTagClass = pagoEstado === 'debe' ? 'debe' : (pagoEstado === 'parcial' ? 'parcial' : 'pagado');
   const pagoTagText = pagoEstado === 'debe' ? 'Debe' : (pagoEstado === 'parcial' ? 'Parcial' : 'Pagado');
+  const dias = job.estado === 'pendiente' ? diasDesde(job.fecha) : 0;
+  const esOlvidado = dias > DIAS_OLVIDADO;
   return `
-    <div class="entry entry-compact ${job.estado}" onclick="irACliente('${job.clientId}')">
+    <div class="entry entry-compact ${job.estado} ${esOlvidado ? 'olvidado' : ''}" onclick="irACliente('${job.clientId}')">
       <div class="entry-top">
-        <div class="entry-title">${escapeHtml(clienteNombrePorId(job.clientId))}${job.equipo ? ' · ' + escapeHtml(job.equipo) : ''}</div>
+        <div class="entry-title">${escapeHtml(clienteNombrePorId(job.clientId))}${job.equipo ? ' · ' + escapeHtml(job.equipo) : ''}${esOlvidado ? `<span class="olvidado-badge">⚠️ ${dias}d sin entregar</span>` : ''}</div>
         <div class="entry-date">${fmtDate(job.fecha)}</div>
       </div>
       <div class="entry-bottom">
@@ -513,12 +828,14 @@ function renderJobCard(job) {
 
   const pagoTagClass = pagoEstado === 'debe' ? 'debe' : (pagoEstado === 'parcial' ? 'parcial' : 'pagado');
   const pagoTagText = pagoEstado === 'debe' ? 'Debe' : (pagoEstado === 'parcial' ? 'Parcial' : 'Pagado');
+  const dias = job.estado === 'pendiente' ? diasDesde(job.fecha) : 0;
+  const esOlvidado = dias > DIAS_OLVIDADO;
 
   return `
-    <div class="entry ${job.estado}">
+    <div class="entry ${job.estado} ${esOlvidado ? 'olvidado' : ''}">
       <div class="entry-top">
         <div>
-          <div class="entry-title" onclick="irACliente('${job.clientId}')">${escapeHtml(clienteNombrePorId(job.clientId))}${job.equipo ? ' · ' + escapeHtml(job.equipo) : ''}</div>
+          <div class="entry-title" onclick="irACliente('${job.clientId}')">${escapeHtml(clienteNombrePorId(job.clientId))}${job.equipo ? ' · ' + escapeHtml(job.equipo) : ''}${esOlvidado ? `<span class="olvidado-badge">⚠️ ${dias}d sin entregar</span>` : ''}</div>
           ${wa ? `<a class="phone-link" href="${wa}" target="_blank" rel="noopener">💬 ${escapeHtml(telefono)}</a>` : ''}
         </div>
         <div class="entry-date">${fmtDate(job.fecha)}</div>
@@ -542,6 +859,9 @@ function renderJobCard(job) {
       <div class="btn-row">
         <button class="btn-ghost btn-sm" onclick="toggleMovForm('${job.id}')">+ Movimiento</button>
         <button class="btn-ghost btn-sm" onclick="enviarComprobante('${job.id}')">📤 Comprobante</button>
+        <button class="btn-ghost btn-sm" onclick="enviarComprobantePDF('${job.id}')">📄 PDF</button>
+        ${pagoEstado === 'pagado' && ingresos > 0 ? `<button class="btn-ghost btn-sm" onclick="enviarFacturaPDF('${job.id}')">🧾 Facturar</button>` : ''}
+        ${wa && job.estado !== 'entregado' ? `<button class="btn-ghost btn-sm" onclick="avisarListo('${job.id}')">✅ Avisar listo</button>` : ''}
         ${presupuesto > 0 && saldo > 0.01 ? `<button class="btn-cobrar btn-sm" onclick="cobrarSaldo('${job.id}')">Cobrar saldo (${fmtMoney(saldo)})</button>` : ''}
       </div>
 
@@ -825,6 +1145,63 @@ document.getElementById('btnCompartirResumen').addEventListener('click', () => {
   window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank');
 });
 
+// ---------------- ESTADÍSTICAS ----------------
+function renderEstadisticas() {
+  const wrap = document.getElementById('statsBody');
+  if (!wrap) return;
+  if (!currentJobs.length) {
+    wrap.innerHTML = '<p class="hint" style="margin:0;">Todavía no hay suficientes trabajos cargados para mostrar estadísticas.</p>';
+    return;
+  }
+
+  // Equipo más reparado
+  const equipoCount = {};
+  currentJobs.forEach(j => {
+    const key = (j.equipo || '').trim();
+    if (!key) return;
+    equipoCount[key] = (equipoCount[key] || 0) + 1;
+  });
+  let equipoTop = '—', equipoTopCant = 0;
+  Object.entries(equipoCount).forEach(([k, v]) => { if (v > equipoTopCant) { equipoTop = k; equipoTopCant = v; } });
+
+  // Cliente que más gastó (más ingresos generó)
+  const clienteTotales = {};
+  currentJobs.forEach(j => {
+    clienteTotales[j.clientId] = (clienteTotales[j.clientId] || 0) + totalIngresoJob(j);
+  });
+  let clienteTopId = null, clienteTopMonto = 0;
+  Object.entries(clienteTotales).forEach(([id, monto]) => { if (monto > clienteTopMonto) { clienteTopId = id; clienteTopMonto = monto; } });
+  const clienteTopNombre = clienteTopId ? clienteNombrePorId(clienteTopId) : '—';
+
+  // Ingreso promedio por trabajo
+  const totalIngresos = currentJobs.reduce((s, j) => s + totalIngresoJob(j), 0);
+  const promedio = currentJobs.length ? totalIngresos / currentJobs.length : 0;
+
+  // Mes con más ganancia
+  const movs = getAllMovimientosGlobal();
+  const porMes = {};
+  movs.forEach(m => {
+    if (!m.fecha) return;
+    const mes = m.fecha.slice(0, 7);
+    porMes[mes] = (porMes[mes] || 0) + (m.tipo === 'ingreso' ? Number(m.monto || 0) : -Number(m.monto || 0));
+  });
+  let mesTop = null, mesTopMonto = -Infinity;
+  Object.entries(porMes).forEach(([mes, monto]) => { if (monto > mesTopMonto) { mesTop = mes; mesTopMonto = monto; } });
+  let mesTopLabel = '—';
+  if (mesTop) {
+    const l = new Date(mesTop + '-02').toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+    mesTopLabel = l.charAt(0).toUpperCase() + l.slice(1);
+  }
+
+  wrap.innerHTML = `
+    <div class="stats-grid">
+      <div class="stats-item"><span class="stats-label">Equipo más reparado</span><span class="stats-value">${escapeHtml(equipoTop)}${equipoTopCant ? ' (' + equipoTopCant + ')' : ''}</span></div>
+      <div class="stats-item"><span class="stats-label">Cliente que más gastó</span><span class="stats-value">${escapeHtml(clienteTopNombre)}${clienteTopMonto ? ' · ' + fmtMoney(clienteTopMonto) : ''}</span></div>
+      <div class="stats-item"><span class="stats-label">Ingreso promedio por trabajo</span><span class="stats-value">${fmtMoney(promedio)}</span></div>
+      <div class="stats-item"><span class="stats-label">Mejor mes</span><span class="stats-value">${mesTop ? mesTopLabel + ' · ' + fmtMoney(mesTopMonto) : '—'}</span></div>
+    </div>`;
+}
+
 // ---------------- CLIENTES ----------------
 document.getElementById('btnAddClient').addEventListener('click', async () => {
   const nombre = document.getElementById('c_nombre').value.trim();
@@ -903,6 +1280,16 @@ async function editarTelefonoCliente(id) {
   await renderAll();
 }
 
+async function editarEmailCliente(id) {
+  const cliente = currentClients.find(c => c.id === id);
+  if (!cliente) return;
+  const val = prompt('Email del cliente (para informes técnicos):', cliente.email || '');
+  if (val === null) return;
+  cliente.email = val.trim();
+  await saveClient(cliente);
+  await renderAll();
+}
+
 async function deleteClienteConfirm(id) {
   const jobs = currentJobs.filter(j => j.clientId === id);
   const msg = jobs.length > 0
@@ -933,6 +1320,9 @@ function renderClienteDetalle(clientId) {
       ${wa ? `<a class="phone-link" href="${wa}" target="_blank" rel="noopener" onclick="event.stopPropagation()">💬 ${escapeHtml(cliente.telefono)}</a>` : '📞 sin teléfono'} (tocar para editar)
     </p>
     ${cliente.notas ? `<p class="hint">${escapeHtml(cliente.notas)}</p>` : ''}
+    <p class="hint" style="cursor:pointer;" onclick="editarEmailCliente('${cliente.id}')">
+      📧 ${cliente.email ? escapeHtml(cliente.email) : 'sin email cargado'} (tocar para editar)
+    </p>
     <div class="entry-money" style="margin-top:10px;">
       <div><b>Ingresos totales</b><span class="income">${fmtMoney(totalIngresos)}</span></div>
       <div><b>Gastos totales</b><span class="expense">${fmtMoney(totalGastos)}</span></div>
@@ -1034,6 +1424,344 @@ document.getElementById('btnActualizarApp').addEventListener('click', () => {
   document.getElementById('updateBanner').classList.remove('open');
 });
 
+// ---------------- INFORMES TÉCNICOS (para aseguradoras) ----------------
+let camposInformeConfig = [];
+let camposEditorTemp = [];
+
+// Lee el valor de un campo del informe, con compatibilidad hacia atrás
+// para informes viejos que guardaban los datos sueltos (email, dni, etc.)
+// en vez de adentro de "campos".
+function valorCampo(informe, campoId) {
+  if (informe.campos && informe.campos[campoId]) return informe.campos[campoId];
+  return informe[campoId] || '';
+}
+
+function renderInformesClientDatalist() {
+  const dl = document.getElementById('informesClientesList');
+  if (!dl) return;
+  dl.innerHTML = currentClients.map(c => `<option value="${escapeHtml(c.nombre)}">`).join('');
+}
+
+// Dibuja los campos del formulario según la configuración (no se llama en
+// cada renderAll — solo al arrancar y después de guardar cambios en el
+// editor — así no se te borra lo que estás escribiendo mientras sincroniza).
+function renderInformeFormCampos() {
+  const wrap = document.getElementById('informeCamposDinamicos');
+  if (!wrap) return;
+  wrap.innerHTML = camposInformeConfig.map(c => {
+    const inputId = 'campo_' + c.id;
+    if (c.tipo === 'textarea') {
+      return `
+        <div class="field">
+          <label>${escapeHtml(c.label)}${c.obligatorio ? ' *' : ''}</label>
+          <textarea id="${inputId}" data-campo-id="${c.id}"></textarea>
+        </div>`;
+    }
+    const tipoInput = c.tipo === 'numero' ? 'number' : (c.tipo === 'fecha' ? 'date' : (c.tipo === 'email' ? 'email' : 'text'));
+    return `
+      <div class="field">
+        <label>${escapeHtml(c.label)}${c.obligatorio ? ' *' : ''}</label>
+        <input type="${tipoInput}" id="${inputId}" data-campo-id="${c.id}">
+      </div>`;
+  }).join('');
+}
+
+// Autocompletar datos del cliente si ya está cargado
+document.getElementById('i_cliente').addEventListener('input', (e) => {
+  const nombre = e.target.value.trim().toLowerCase();
+  const match = currentClients.find(c => c.nombre.trim().toLowerCase() === nombre);
+  if (!match) return;
+  if (match.telefono) document.getElementById('i_telefono').value = match.telefono;
+  const camposCliente = match.camposInforme || {};
+  camposInformeConfig.forEach(c => {
+    const el = document.getElementById('campo_' + c.id);
+    if (el && camposCliente[c.id]) el.value = camposCliente[c.id];
+  });
+});
+
+document.getElementById('btnAddInforme').addEventListener('click', async () => {
+  const nombre = document.getElementById('i_cliente').value.trim();
+  const telefono = document.getElementById('i_telefono').value.trim();
+  const fecha = document.getElementById('i_fecha').value || todayStr();
+
+  if (!nombre) { showModal('Falta el nombre del cliente.', 'error'); return; }
+
+  const camposValores = {};
+  const faltantes = [];
+  camposInformeConfig.forEach(c => {
+    const el = document.getElementById('campo_' + c.id);
+    const val = el ? el.value.trim() : '';
+    camposValores[c.id] = val;
+    if (c.obligatorio && !val) faltantes.push(c.label);
+  });
+  if (faltantes.length) {
+    showModal('Faltan datos obligatorios:\n\n' + faltantes.map(f => '•  ' + f).join('\n'), 'error');
+    return;
+  }
+
+  try {
+    // Vincula con el cliente existente (y completa sus datos guardados),
+    // o crea uno nuevo si no estaba cargado todavía.
+    let cliente = currentClients.find(c => c.nombre.trim().toLowerCase() === nombre.toLowerCase());
+    const camposNoVacios = Object.fromEntries(Object.entries(camposValores).filter(([, v]) => v));
+    if (cliente) {
+      let cambio = false;
+      if (telefono && !cliente.telefono) { cliente.telefono = telefono; cambio = true; }
+      const camposClienteActuales = cliente.camposInforme || {};
+      const camposClienteNuevo = { ...camposClienteActuales, ...camposNoVacios };
+      if (JSON.stringify(camposClienteNuevo) !== JSON.stringify(camposClienteActuales)) {
+        cliente.camposInforme = camposClienteNuevo;
+        cambio = true;
+      }
+      if (cambio) await saveClient(cliente);
+    } else {
+      cliente = await saveClient({ nombre, telefono, notas: '', camposInforme: camposNoVacios });
+    }
+
+    await saveInforme({ clientId: cliente.id, nombre, telefono, fecha, campos: camposValores });
+  } catch (e) {
+    console.error(e);
+    showModal('No se pudo guardar el informe.\n\nError: ' + e.message, 'error');
+    return;
+  }
+
+  document.getElementById('i_cliente').value = '';
+  document.getElementById('i_telefono').value = '';
+  document.getElementById('i_fecha').value = todayStr();
+  camposInformeConfig.forEach(c => {
+    const el = document.getElementById('campo_' + c.id);
+    if (el) el.value = '';
+  });
+
+  await renderAll();
+  showModal('Informe técnico generado. Ya lo podés enviar desde la lista de abajo.', 'success');
+});
+
+function renderInformesLista() {
+  const wrapEl = document.getElementById('informesLista');
+  if (!wrapEl) return;
+  const filterText = (document.getElementById('filterInformes').value || '').toLowerCase();
+  const emptyMsg = document.getElementById('informesEmptyMsg');
+  const filtered = currentInformes.filter(i => {
+    if (!filterText) return true;
+    const camposTexto = camposInformeConfig.map(c => valorCampo(i, c.id)).join(' ').toLowerCase();
+    return (i.nombre || '').toLowerCase().includes(filterText) || camposTexto.includes(filterText);
+  });
+
+  if (filtered.length === 0) {
+    wrapEl.innerHTML = '';
+    emptyMsg.style.display = 'block';
+    emptyMsg.textContent = currentInformes.length === 0
+      ? 'Todavía no cargaste ningún informe técnico.'
+      : 'No hay resultados con ese filtro.';
+    return;
+  }
+  emptyMsg.style.display = 'none';
+
+  wrapEl.innerHTML = filtered.map(i => {
+    const resumen = camposInformeConfig
+      .filter(c => c.tipo !== 'textarea')
+      .map(c => ({ label: c.label, valor: valorCampo(i, c.id) }))
+      .filter(x => x.valor)
+      .slice(0, 3)
+      .map(x => `${escapeHtml(x.label)}: ${escapeHtml(x.valor)}`)
+      .join(' · ');
+    return `
+    <div class="entry">
+      <div class="entry-top">
+        <div class="entry-title">${escapeHtml(i.nombre)}</div>
+        <div class="entry-date">${fmtDate(i.fecha)}</div>
+      </div>
+      ${resumen ? `<div class="entry-desc">${resumen}</div>` : ''}
+      <div class="entry-bottom">
+        <div class="entry-actions">
+          <button class="btn-ghost btn-sm" onclick="enviarInforme('${i.id}')">📤 Enviar PDF</button>
+          <button class="btn-danger" onclick="eliminarInformeConfirm('${i.id}')">Eliminar</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+document.getElementById('filterInformes').addEventListener('input', renderInformesLista);
+
+async function eliminarInformeConfirm(id) {
+  if (!confirm('¿Eliminar este informe técnico?')) return;
+  await deleteInforme(id);
+  await renderAll();
+}
+
+function generarPDFInforme(informe) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  let y = encabezadoPDF(doc, 'INFORME TÉCNICO', fmtDate(informe.fecha));
+
+  const colAncho = (pageWidth - 28 - 10) / 2;
+  campoPDF(doc, 14, y, colAncho, 'Cliente', informe.nombre);
+  campoPDF(doc, 14 + colAncho + 10, y, colAncho, 'Teléfono', informe.telefono);
+  y += 14;
+
+  const camposCortos = camposInformeConfig.filter(c => c.tipo !== 'textarea');
+  const camposLargos = camposInformeConfig.filter(c => c.tipo === 'textarea');
+
+  for (let idx = 0; idx < camposCortos.length; idx += 2) {
+    const c1 = camposCortos[idx];
+    const c2 = camposCortos[idx + 1];
+    campoPDF(doc, 14, y, colAncho, c1.label, valorCampo(informe, c1.id));
+    if (c2) campoPDF(doc, 14 + colAncho + 10, y, colAncho, c2.label, valorCampo(informe, c2.id));
+    y += 14;
+  }
+
+  if (camposLargos.length) {
+    doc.setDrawColor(225, 220, 210);
+    doc.line(14, y, pageWidth - 14, y);
+    y += 10;
+    camposLargos.forEach(c => {
+      doc.setFontSize(7.5);
+      doc.setTextColor(140, 135, 125);
+      doc.text(c.label.toUpperCase(), 14, y);
+      y += 6;
+      doc.setFontSize(10.5);
+      doc.setTextColor(30, 28, 24);
+      const partes = doc.splitTextToSize(valorCampo(informe, c.id) || '-', pageWidth - 28);
+      doc.text(partes, 14, y);
+      y += partes.length * 5.5 + 8;
+    });
+  }
+
+  piePDF(doc);
+  return doc;
+}
+
+function mostrarEleccionEnvio(onEmail, onWhatsApp) {
+  pendingEnvioEmail = onEmail;
+  pendingEnvioWhatsApp = onWhatsApp;
+  document.getElementById('envioOverlay').classList.add('open');
+}
+document.getElementById('btnEnvioEmail').addEventListener('click', () => {
+  document.getElementById('envioOverlay').classList.remove('open');
+  if (pendingEnvioEmail) pendingEnvioEmail();
+});
+document.getElementById('btnEnvioWhatsApp').addEventListener('click', () => {
+  document.getElementById('envioOverlay').classList.remove('open');
+  if (pendingEnvioWhatsApp) pendingEnvioWhatsApp();
+});
+document.getElementById('btnEnvioCancelar').addEventListener('click', () => {
+  document.getElementById('envioOverlay').classList.remove('open');
+});
+
+async function enviarInforme(informeId) {
+  const informe = currentInformes.find(i => i.id === informeId);
+  if (!informe) return;
+  const doc = generarPDFInforme(informe);
+  const blob = doc.output('blob');
+  const nombreArchivo = 'informe-' + (informe.nombre || 'cliente').replace(/\s+/g, '-') + '.pdf';
+
+  // 1) Intento con "Compartir" nativo — adjunta el PDF directo, elegís la app vos mismo (WhatsApp, Mail, etc.)
+  try {
+    const file = new File([blob], nombreArchivo, { type: 'application/pdf' });
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      await navigator.share({ files: [file], title: 'Informe técnico', text: `Informe técnico — ${informe.nombre || ''}` });
+      return;
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') return;
+    console.error('Error al compartir informe:', e);
+  }
+
+  // 2) Alternativa: pregunta Email/WhatsApp si hay mail cargado (según el
+  //    campo que tenga tipo "email" en la configuración); si no, va a WhatsApp.
+  //    OJO: ni WhatsApp ni el correo permiten adjuntar un archivo solo con un
+  //    link — se descarga el PDF y hay que adjuntarlo a mano en el chat/mail.
+  const campoEmail = camposInformeConfig.find(c => c.tipo === 'email');
+  const email = campoEmail ? valorCampo(informe, campoEmail.id) : '';
+  const campoEquipo = camposInformeConfig.find(c => c.id === 'equipo');
+  const equipo = campoEquipo ? valorCampo(informe, 'equipo') : '';
+
+  const irPorWhatsApp = () => {
+    const digits = (informe.telefono || '').replace(/\D/g, '');
+    const texto = `Hola ${informe.nombre || ''}, te comparto el informe técnico${equipo ? ' de tu equipo (' + equipo + ')' : ''}.`;
+    const waUrl = digits ? `https://wa.me/${digits}?text=${encodeURIComponent(texto)}` : `https://wa.me/?text=${encodeURIComponent(texto)}`;
+    descargarPDF(blob, nombreArchivo);
+    window.open(waUrl, '_blank');
+    showModal('Se descargó el PDF y se abrió WhatsApp — adjuntá el archivo descargado (de tus Descargas) antes de enviar.', 'success');
+  };
+  const irPorEmail = () => {
+    const asunto = `Informe técnico — ${informe.nombre || ''}`;
+    const cuerpo = `Hola,\n\nAdjunto el informe técnico${equipo ? ' del equipo ' + equipo : ''}.\n\nSaludos.`;
+    descargarPDF(blob, nombreArchivo);
+    window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+    showModal('Se descargó el PDF y se abrió tu app de correo con el destinatario cargado — adjuntá el archivo descargado antes de enviar.', 'success');
+  };
+
+  if (email) {
+    mostrarEleccionEnvio(irPorEmail, irPorWhatsApp);
+  } else {
+    irPorWhatsApp();
+  }
+}
+
+// ---------------- EDITOR DE CAMPOS DEL INFORME TÉCNICO ----------------
+function renderCamposEditor() {
+  const wrap = document.getElementById('camposListaEditor');
+  wrap.innerHTML = camposEditorTemp.map((c, idx) => `
+    <div class="campo-editor-row">
+      <input type="text" value="${escapeHtml(c.label)}" placeholder="Nombre del campo" oninput="actualizarCampoEditor(${idx}, 'label', this.value)">
+      <select onchange="actualizarCampoEditor(${idx}, 'tipo', this.value)">
+        <option value="texto" ${c.tipo === 'texto' ? 'selected' : ''}>Texto corto</option>
+        <option value="textarea" ${c.tipo === 'textarea' ? 'selected' : ''}>Texto largo</option>
+        <option value="numero" ${c.tipo === 'numero' ? 'selected' : ''}>Número</option>
+        <option value="fecha" ${c.tipo === 'fecha' ? 'selected' : ''}>Fecha</option>
+        <option value="email" ${c.tipo === 'email' ? 'selected' : ''}>Email</option>
+      </select>
+      <label class="campo-editor-obligatorio">
+        <input type="checkbox" ${c.obligatorio ? 'checked' : ''} onchange="actualizarCampoEditor(${idx}, 'obligatorio', this.checked)"> Obligatorio
+      </label>
+      <button onclick="eliminarCampoEditor(${idx})" title="Eliminar campo">✕</button>
+    </div>`).join('');
+}
+
+function actualizarCampoEditor(idx, prop, valor) {
+  camposEditorTemp[idx][prop] = valor;
+}
+
+function eliminarCampoEditor(idx) {
+  camposEditorTemp.splice(idx, 1);
+  renderCamposEditor();
+}
+
+document.getElementById('btnEditarCampos').addEventListener('click', () => {
+  camposEditorTemp = JSON.parse(JSON.stringify(camposInformeConfig));
+  renderCamposEditor();
+  document.getElementById('camposOverlay').classList.add('open');
+});
+
+document.getElementById('btnAgregarCampo').addEventListener('click', () => {
+  camposEditorTemp.push({ id: genLocalId(), label: '', tipo: 'texto', obligatorio: false });
+  renderCamposEditor();
+});
+
+document.getElementById('btnCancelarCampos').addEventListener('click', () => {
+  document.getElementById('camposOverlay').classList.remove('open');
+});
+
+document.getElementById('btnGuardarCampos').addEventListener('click', async () => {
+  const limpio = camposEditorTemp.map(c => ({ ...c, label: (c.label || '').trim() })).filter(c => c.label);
+  if (!limpio.length) { showModal('Agregá al menos un campo, o cancelá para no cambiar nada.', 'error'); return; }
+  try {
+    await saveCamposInforme(limpio);
+  } catch (e) {
+    console.error(e);
+    showModal('No se pudieron guardar los campos.\n\nError: ' + e.message, 'error');
+    return;
+  }
+  camposInformeConfig = limpio;
+  renderInformeFormCampos();
+  document.getElementById('camposOverlay').classList.remove('open');
+  showModal('Campos del informe actualizados.', 'success');
+});
+
 // ---------------- APARIENCIA (modo claro/oscuro y tamaño de letra) ----------------
 const FONT_STEPS = [14, 16, 18, 20, 22, 24];
 
@@ -1091,3 +1819,7 @@ setOnChangeCallback(() => {
 initFirestoreSync();
 renderAll();
 checkAndSendBackup();
+(async function iniciarCamposInforme() {
+  camposInformeConfig = await getCamposInforme();
+  renderInformeFormCampos();
+})();

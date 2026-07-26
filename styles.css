@@ -328,6 +328,17 @@ button:active{transform:scale(.98);}
 .cliente-info p{margin:0;font-size:0.75rem;color:var(--text-muted);}
 .cliente-stats{font-family:var(--font-mono);font-size:0.75rem;color:var(--teal);white-space:nowrap;}
 
+/* Sugerencias de cliente (propias, no datalist nativo) */
+.suggestions-dropdown{
+  display:none;position:absolute;left:0;right:0;top:100%;z-index:20;
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  margin-top:2px;max-height:180px;overflow-y:auto;
+  box-shadow:0 6px 16px rgba(0,0,0,.3);
+}
+.suggestions-dropdown.open{display:block;}
+.suggestion-item{padding:9px 12px;font-size:0.875rem;color:var(--text);cursor:pointer;}
+.suggestion-item:hover, .suggestion-item.activa{background:var(--surface-raised);}
+
 /* Campos obligatorios con error */
 .field-error-msg{display:none;color:var(--danger);font-size:0.6875rem;margin-top:4px;}
 .field.field-error input,
@@ -363,6 +374,40 @@ button:active{transform:scale(.98);}
 }
 .modal-icon{font-size:2.125rem;margin-bottom:10px;}
 .modal-msg{font-size:0.875rem;line-height:1.6;color:var(--text);white-space:pre-line;}
+
+/* Trabajos "olvidados" (pendientes hace mucho) */
+.entry.olvidado{border-color:var(--danger);}
+.olvidado-badge{
+  display:inline-block;margin-left:6px;font-family:var(--font-mono);font-size:0.625rem;
+  color:var(--danger);background:rgba(193,91,82,.12);padding:2px 6px;border-radius:5px;
+  vertical-align:middle;white-space:nowrap;
+}
+
+/* Encabezado de panel con botón al lado del título */
+.panel-header-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;}
+.panel-header-row h2{margin:0;}
+
+/* Editor de campos personalizados del informe técnico */
+.campo-editor-row{
+  display:flex;gap:6px;align-items:flex-start;background:var(--surface-raised);
+  border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px;
+}
+.campo-editor-row input[type="text"]{flex:2;}
+.campo-editor-row select{flex:1;}
+.campo-editor-row .campo-editor-obligatorio{
+  display:flex;align-items:center;gap:4px;font-size:0.6875rem;color:var(--text-muted);white-space:nowrap;padding-top:9px;
+}
+.campo-editor-row button{
+  background:transparent;border:none;color:var(--text-muted);font-size:1rem;cursor:pointer;padding:6px;
+}
+.campo-editor-row button:hover{color:var(--danger);}
+
+/* Estadísticas */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.stats-item{background:var(--surface-raised);border:1px solid var(--line);border-radius:9px;padding:10px 12px;}
+.stats-label{display:block;font-size:0.625rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;}
+.stats-value{font-family:var(--font-mono);font-size:0.8125rem;color:var(--text);word-break:break-word;}
+@media(max-width:480px){.stats-grid{grid-template-columns:1fr;}}
 
 /* Lightbox */
 .lightbox{

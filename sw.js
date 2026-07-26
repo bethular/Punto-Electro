@@ -1,4 +1,4 @@
-const CACHE_NAME = 'punto-electro-v6-apariencia';
+const CACHE_NAME = 'punto-electro-v12-sugerencias-propias';
 const ASSETS = [
   './',
   './index.html',
@@ -40,7 +40,7 @@ self.addEventListener('activate', (event) => {
 // no interferir con la sincronización en tiempo real.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  const bypass = ['google', 'googleapis', 'gstatic', 'firebaseio', 'firebase', 'emailjs', 'jsdelivr'];
+  const bypass = ['google', 'googleapis', 'gstatic', 'firebaseio', 'firebase', 'emailjs', 'jsdelivr', 'cdnjs'];
   if (bypass.some((s) => url.origin.includes(s))) {
     return;
   }
