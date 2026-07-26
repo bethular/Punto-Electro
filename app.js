@@ -1034,6 +1034,54 @@ document.getElementById('btnActualizarApp').addEventListener('click', () => {
   document.getElementById('updateBanner').classList.remove('open');
 });
 
+// ---------------- APARIENCIA (modo claro/oscuro y tamaño de letra) ----------------
+const FONT_STEPS = [14, 16, 18, 20, 22, 24];
+
+function aplicarTema(tema) {
+  document.body.classList.toggle('theme-light', tema === 'light');
+  document.getElementById('btnThemeDark').classList.toggle('active', tema !== 'light');
+  document.getElementById('btnThemeLight').classList.toggle('active', tema === 'light');
+  localStorage.setItem('pe_tema', tema);
+}
+
+function aplicarFontStep(step) {
+  step = Math.max(0, Math.min(FONT_STEPS.length - 1, step));
+  const px = FONT_STEPS[step];
+  document.documentElement.style.fontSize = px + 'px';
+  document.getElementById('fontSizeLabel').textContent = Math.round((px / 16) * 100) + '%';
+  localStorage.setItem('pe_fontStep', String(step));
+}
+
+// Aplicar preferencias guardadas apenas carga la página
+(function iniciarApariencia() {
+  const temaGuardado = localStorage.getItem('pe_tema') || 'dark';
+  document.body.classList.toggle('theme-light', temaGuardado === 'light');
+  const stepGuardado = parseInt(localStorage.getItem('pe_fontStep'), 10);
+  const step = Number.isInteger(stepGuardado) ? stepGuardado : 1;
+  document.documentElement.style.fontSize = FONT_STEPS[Math.max(0, Math.min(FONT_STEPS.length - 1, step))] + 'px';
+})();
+
+document.getElementById('btnSettings').addEventListener('click', () => {
+  const temaActual = document.body.classList.contains('theme-light') ? 'light' : 'dark';
+  aplicarTema(temaActual);
+  const stepActual = parseInt(localStorage.getItem('pe_fontStep'), 10);
+  aplicarFontStep(Number.isInteger(stepActual) ? stepActual : 1);
+  document.getElementById('settingsOverlay').classList.add('open');
+});
+document.getElementById('btnCloseSettings').addEventListener('click', () => {
+  document.getElementById('settingsOverlay').classList.remove('open');
+});
+document.getElementById('btnThemeDark').addEventListener('click', () => aplicarTema('dark'));
+document.getElementById('btnThemeLight').addEventListener('click', () => aplicarTema('light'));
+document.getElementById('btnFontDown').addEventListener('click', () => {
+  const step = parseInt(localStorage.getItem('pe_fontStep'), 10) || 1;
+  aplicarFontStep(step - 1);
+});
+document.getElementById('btnFontUp').addEventListener('click', () => {
+  const step = parseInt(localStorage.getItem('pe_fontStep'), 10) || 1;
+  aplicarFontStep(step + 1);
+});
+
 // ---------------- ARRANQUE ----------------
 setOnChangeCallback(() => {
   renderAll();

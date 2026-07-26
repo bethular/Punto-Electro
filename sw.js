@@ -1,4 +1,4 @@
-const CACHE_NAME = 'punto-electro-v5-auto-update';
+const CACHE_NAME = 'punto-electro-v6-apariencia';
 const ASSETS = [
   './',
   './index.html',

@@ -18,6 +18,7 @@
 <body>
 <div class="app">
   <header>
+    <button class="settings-btn" id="btnSettings" aria-label="Apariencia">⚙️</button>
     <p class="eyebrow">Registro / Reparaciones</p>
     <h1>Punto Electro</h1>
   </header>
@@ -285,6 +286,28 @@
     </div>
   </section>
 
+</div>
+
+<div class="modal-overlay settings-panel" id="settingsOverlay">
+  <div class="modal-box">
+    <h3>Apariencia</h3>
+    <div class="settings-row">
+      <span>Modo</span>
+      <div class="theme-toggle">
+        <button class="theme-btn" id="btnThemeDark">🌙 Oscuro</button>
+        <button class="theme-btn" id="btnThemeLight">☀️ Claro</button>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span>Tamaño de letra</span>
+      <div class="fontsize-toggle">
+        <button id="btnFontDown">A−</button>
+        <span id="fontSizeLabel">100%</span>
+        <button id="btnFontUp">A+</button>
+      </div>
+    </div>
+    <button class="btn-ghost btn-sm" id="btnCloseSettings" style="width:100%;">Cerrar</button>
+  </div>
 </div>
 
 <div class="update-banner" id="updateBanner">
